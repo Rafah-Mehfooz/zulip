@@ -6,6 +6,24 @@ $(function () {
     });
 });
 
+$(function () {
+    $('#app-perfect-scrollbar').perfectScrollbar({
+        suppressScrollX: true,
+        useKeyboard: false,
+        wheelSpeed: 20,
+          wheelPropagation: true,
+    });
+});
+$(function () {
+    $('#user-list-perfect-scrollbar').perfectScrollbar({
+        suppressScrollX: true,
+        useKeyboard: false,
+        wheelSpeed: 20,
+          wheelPropagation: false,
+          swipePropagation:false,
+    });
+});
+
 function scrollbarWidth() {
     $('body').prepend('<div id="outertest" style="width:200px; height:150px; position: absolute; top: 0; left: 0; overflow-x:hidden; overflow-y:scroll; background: #ff0000; visibility: hidden;"><div id="innertest" style="width:100%; height: 200px; overflow-y: visible;">&nbsp;</div></div>');
 
