@@ -8,19 +8,17 @@ $(function () {
 
 $(function () {
     $('#app-perfect-scrollbar').perfectScrollbar({
-        suppressScrollX: true,
-        useKeyboard: false,
-        wheelSpeed: 20,
-          wheelPropagation: true,
+      suppressScrollX: true,
+      useKeyboard: false,
+      wheelSpeed: 20,
+      minScrollbarLength:50,
     });
 });
 $(function () {
     $('#user-list-perfect-scrollbar').perfectScrollbar({
-        suppressScrollX: true,
-        useKeyboard: false,
-        wheelSpeed: 20,
-          wheelPropagation: false,
-          swipePropagation:false,
+      suppressScrollX: true,
+      useKeyboard: false,
+      wheelSpeed: 20,
     });
 });
 

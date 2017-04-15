@@ -173,10 +173,9 @@ exports.zoom_in = function () {
     }
 
     exports.rebuild(active_widget.get_parent(), active_widget.get_stream_name());
-    $('#stream-filters-container','#app-perfect-scrollbar','#user-list-perfect-scrollbar').scrollTop(0);
-    $('#stream-filters-container','#app-perfect-scrollbar','#user-list-perfect-scrollbar').perfectScrollbar('update');
-    $('#user-ps').scrollTop(0);
-    $('#user-ps').perfectScrollbar('update');
+    $('#stream-filters-container','#app-perfect-scrollbar').scrollTop(0);
+    $('#stream-filters-container','#app-perfect-scrollbar').perfectScrollbar('update');
+
 };
 
 exports.zoom_out = function (options) {

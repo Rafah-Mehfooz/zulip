@@ -185,7 +185,7 @@ p.n-margin {
 .fixed-app {
     width: 100%;
     position: fixed;
-    z-index: 98;
+    z-index: 100;
     left: 0px;
 }
 
@@ -211,7 +211,7 @@ p.n-margin {
 .app-main .column-right .right-sidebar {
     position: fixed;
     margin-top: 50px;
-    z-index: 100;
+    z-index: 101;
 }
 
 .app-main .column-left .left-sidebar {
@@ -222,6 +222,7 @@ p.n-margin {
 .app-main .column-right .right-sidebar {
     padding-left: 15px;
     width: 235px;
+    margin-left: 0px !important; /*shifts rightsidebar 15px to left*/
 }
 
 .app-main .column-middle {
@@ -510,6 +511,25 @@ li.actual-dropdown-menu i {
        in Firefox only, for some reason;
        otherwise it gets a scrollbar */
     overflow: visible;
+}
+
+/*perfect scrollbar for messages area*/
+.custom-perfect-scrollbar{
+    overflow-y: hidden;
+    position: relative;
+    width: 100%;
+}
+#app-perfect-scrollbar > .ps-scrollbar-y-rail{
+    opacity: 0.5;
+    background-color: #eee;
+    width:10px !important;
+    right:0px !important;
+}
+
+#app-perfect-scrollbar > .ps-scrollbar-y-rail .ps-scrollbar-y{
+
+  width:10px !important;
+  right:0px !important;
 }
 
 td.pointer {
@@ -1575,7 +1595,7 @@ blockquote p {
     position: absolute;
     width: 100%;
     top: 40px;
-    height: 20px;
+    height: 10px; /*fixes message header half-cut*/
     z-index: 99;
 }
 
@@ -2481,6 +2501,7 @@ button.topic_edit_cancel {
 
 #home {
     margin-top: 41px;
+    margin-right:15px;    /* Fixes message area 15px shift when perfectscrollbar is added*/
 }
 
 .message-pane {

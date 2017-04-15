@@ -6,21 +6,14 @@
 #user_presences,
 #group-pms {
   list-style-position: inside; /* Draw the bullets inside our box */
-  margin-left: 0;
-
-    overflow-y: visible;
-
-}
-.custom-perfect-scrollbar{
-  overflow-y: hidden;
-      position: relative;
-
-      width: 100%;
+    margin-left: 0;
+    overflow: hidden;
 
 }
+
 #user_presences:hover,
 #group-pms:hover {
-    /*overflow-y: auto;*/
+    overflow-y: auto;
 }
 
 #user_presences .user_sidebar_entry:hover,
