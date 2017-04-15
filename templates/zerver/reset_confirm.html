@@ -25,7 +25,7 @@
 
             <div class="input-group">
                 <label for="id_new_password1" class="">{{ _('Password') }}</label>
-                <div class="">
+                <div class="password-reset-field-container">
                     <input id="id_new_password1" class="required" type="password" name="new_password1"
                            value="{% if form.new_password1.value() %}{{ form.new_password1.value() }}{% endif %}"
                            maxlength="100"
@@ -39,7 +39,7 @@
                 </div>
             </div>
             <div class="input-group">
-                <label class="">{{ _('Password strength') }}</label>
+                <label class="password-reset-field-container">{{ _('Password strength') }}</label>
                 <div class="">
                     <div class="progress" id="pw_strength">
                         <div class="bar bar-danger" style="width: 10%;"></div>
@@ -48,7 +48,7 @@
             </div>
             <div class="input-group">
                 <label for="id_new_password2" class="">{{ _('Confirm password') }}</label>
-                <div class="">
+                <div class="password-reset-field-container">
                     <input id="id_new_password2" class="required" type="password" name="new_password2"
                            value="{% if form.new_password2.value() %}{{ form.new_password2.value() }}{% endif %}"
                            maxlength="100" />
