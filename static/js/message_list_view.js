@@ -65,19 +65,39 @@ function same_recipient(a, b) {
 
 function add_display_time(group, message_container, prev) {
     var time = new XDate(message_container.msg.timestamp * 1000);
+    var today = new XDate();
 
     if (prev !== undefined) {
         var prev_time = new XDate(prev.msg.timestamp * 1000);
         if (time.toDateString() !== prev_time.toDateString()) {
             // NB: show_date is HTML, inserted into the document without escaping.
-            group.show_date = (timerender.render_date(time, prev_time))[0].outerHTML;
+            group.show_date = (timerender.render_date(time, prev_time, today))[0].outerHTML;
+            group.show_date_separator = true;
         }
     } else {
-        group.show_date = (timerender.render_date(time))[0].outerHTML;
+        // Show the date in the recipient bar, but not a date separator bar.
+        group.show_date_separator = false;
+        group.show_date = (timerender.render_date(time, undefined, today))[0].outerHTML;
     }
 
     if (message_container.timestr === undefined) {
         message_container.timestr = stringify_time(time);
+    }
+}
+
+function set_topic_edit_properties(group, message) {
+    group.always_visible_topic_edit = false;
+    group.on_hover_topic_edit = false;
+    if (!page_params.realm_allow_message_editing) {
+        return;
+    }
+
+    // Messages with no topics should always have an edit icon visible
+    // to encourage updating them. Admins can also edit any topic.
+    if (message.subject === compose.empty_topic_placeholder()) {
+        group.always_visible_topic_edit = true;
+    } else if (page_params.is_admin) {
+        group.on_hover_topic_edit = true;
     }
 }
 
@@ -108,12 +128,13 @@ function populate_group_from_message_container(group, message_container) {
         group.display_reply_to = message_store.get_pm_full_names(message_container.msg);
     }
     group.display_recipient = message_container.msg.display_recipient;
-    group.always_visible_topic_edit = message_container.msg.always_visible_topic_edit;
-    group.on_hover_topic_edit = message_container.msg.on_hover_topic_edit;
     group.subject_links = message_container.msg.subject_links;
 
+    set_topic_edit_properties(group, message_container.msg);
+
     var time = new XDate(message_container.msg.timestamp * 1000);
-    var date_element = timerender.render_date(time)[0];
+    var today = new XDate();
+    var date_element = timerender.render_date(time, undefined, today)[0];
 
     group.date = date_element.outerHTML;
 }
@@ -129,26 +150,35 @@ MessageListView.prototype = {
         if (message_container.msg.last_edit_timestamp !== undefined) {
             // Add or update the last_edit_timestr
             var last_edit_time = new XDate(message_container.msg.last_edit_timestamp * 1000);
+            var today = new XDate();
             message_container.last_edit_timestr =
-                (timerender.render_date(last_edit_time))[0].textContent
+                (timerender.render_date(last_edit_time, undefined, today))[0].textContent
                 + " at " + stringify_time(last_edit_time);
         }
     },
 
     add_subscription_marker: function MessageListView__add_subscription_marker(
                                 group, last_msg_container, first_msg_container) {
-        if (last_msg_container !== undefined &&
-            first_msg_container.msg.historical !== last_msg_container.msg.historical) {
+        if (last_msg_container === undefined) {
+            return;
+        }
+
+        var last_subscribed = !last_msg_container.msg.historical;
+        var first_subscribed = !first_msg_container.msg.historical;
+        var stream = first_msg_container.msg.stream;
+
+        if (!last_subscribed && first_subscribed) {
             group.bookend_top = true;
-            if (first_msg_container.msg.historical) {
-                group.unsubscribed = first_msg_container.msg.stream;
-                group.bookend_content =
-                    this.list.unsubscribed_bookend_content(first_msg_container.msg.stream);
-            } else {
-                group.subscribed = first_msg_container.msg.stream;
-                group.bookend_content =
-                    this.list.subscribed_bookend_content(first_msg_container.msg.stream);
-            }
+            group.subscribed = stream;
+            group.bookend_content = this.list.subscribed_bookend_content(stream);
+            return;
+        }
+
+        if (last_subscribed && !first_subscribed) {
+            group.bookend_top = true;
+            group.unsubscribed = stream;
+            group.bookend_content = this.list.unsubscribed_bookend_content(stream);
+            return;
         }
     },
 
@@ -241,9 +271,7 @@ MessageListView.prototype = {
                     stream_data.get_color(message_container.msg.stream);
             }
 
-            message_container.contains_mention =
-                notifications.speaking_at_me(message_container.msg);
-            message_container.msg.unread = unread.message_unread(message_container.msg);
+            message_container.contains_mention = message_container.msg.mentioned;
             self._maybe_format_me_message(message_container);
 
             prev = message_container;
@@ -283,8 +311,8 @@ MessageListView.prototype = {
         // Add a subscription marker
         } else if (this.list !== home_msg_list &&
                    last_msg_container.msg.historical !== first_msg_container.msg.historical) {
-            first_group.bookend_bottom = true;
-            this.add_subscription_marker(first_group, last_msg_container, first_msg_container);
+            second_group.bookend_top = true;
+            this.add_subscription_marker(second_group, last_msg_container, first_msg_container);
         }
         return false;
     },
@@ -360,7 +388,13 @@ MessageListView.prototype = {
 
                 if (same_day(last_msg_container, first_msg_container)) {
                     // Clear the date if it is the same as the last group
-                    second_group.show_date = undefined;
+                    delete second_group.show_date;
+                    delete second_group.show_date_separator;
+                } else {
+                    // If we just sent the first message on a new day
+                    // in a narrow, make sure we render a date separator.
+                    add_display_time(second_group, first_msg_container,
+                                     last_msg_container);
                 }
             }
             message_actions.append_groups = new_message_groups;
@@ -397,6 +431,15 @@ MessageListView.prototype = {
                     }
                 });
             }
+
+            // Display emoji (including realm emoji) as text if
+            // page_params.emoji_alt_code is set
+            if (page_params.emoji_alt_code) {
+                row.find(".emoji").replaceWith(function () {
+                    var text = $(this).attr("title");
+                    return ":" + text + ":";
+                });
+             }
 
             var id = rows.id(row);
             message_edit.maybe_show_edit(row, id);
@@ -443,7 +486,15 @@ MessageListView.prototype = {
         // all messages lists. To prevent having both list views overwriting
         // each others data we will make a new message object to add data to
         // for rendering.
-        message_containers = _.map(messages, function (message) { return {msg: message}; });
+        message_containers = _.map(messages, function (message) {
+            if (message.starred) {
+                message.starred_status = i18n.t("Unstar");
+            } else {
+                message.starred_status = i18n.t("Star");
+            }
+
+            return {msg: message};
+        });
 
         function save_scroll_position() {
             if (orig_scrolltop_offset === undefined && self.selected_row().length > 0) {
@@ -577,7 +628,7 @@ MessageListView.prototype = {
                 _.last(last_message_group.message_containers).msg.historical;
         }
 
-        var stream_name = narrow.stream();
+        var stream_name = narrow_state.stream();
         if (stream_name !== undefined) {
             // If user narrows to a stream, doesn't update
             // trailing bookend if user is subscribed.
@@ -671,6 +722,22 @@ MessageListView.prototype = {
         }
 
         if (new_messages_height <= 0) {
+            return;
+        }
+
+        if (!activity.has_focus) {
+            // Don't autoscroll if the window hasn't had focus
+            // recently.  This in intended to help protect us from
+            // auto-scrolling downwards when the window is in the
+            // background and might be having some functionality
+            // throttled by modern Chrome's aggressive power-saving
+            // features.
+            blueslip.log("Suppressing scrolldown due to inactivity");
+            return;
+        }
+
+        // do not scroll if there are any active popovers.
+        if (popovers.any_active()) {
             return;
         }
 
@@ -812,7 +879,8 @@ MessageListView.prototype = {
         header.replaceWith(rendered_recipient_row);
     },
 
-    _rerender_message: function MessageListView___rerender_message(message_container) {
+    _rerender_message: function MessageListView___rerender_message(message_container,
+                                                                   message_content_edited) {
         var row = this.get_row(message_container.msg.id);
         var was_selected = this.list.selected_message() === message_container.msg;
 
@@ -820,7 +888,13 @@ MessageListView.prototype = {
         this._add_msg_timestring(message_container);
         this._maybe_format_me_message(message_container);
 
+        // Make sure the right thing happens if the message was edited to mention us.
+        message_container.contains_mention = message_container.msg.mentioned;
+
         var rendered_msg = $(this._get_message_template(message_container));
+        if (message_content_edited) {
+            rendered_msg.addClass("fade-in-message");
+        }
         this._post_process_dom_messages(rendered_msg.get());
         row.replaceWith(rendered_msg);
 
@@ -829,7 +903,8 @@ MessageListView.prototype = {
         }
     },
 
-    rerender_messages: function MessageListView__rerender_messages(messages) {
+    rerender_messages: function MessageListView__rerender_messages(messages,
+                                                                   message_content_edited) {
         var self = this;
 
         // Convert messages to list messages
@@ -851,13 +926,13 @@ MessageListView.prototype = {
                 message_groups.push(current_group);
                 current_group = [];
             }
-            self._rerender_message(message_container);
+            self._rerender_message(message_container, message_content_edited);
         });
         if (current_group.length !== 0) {
             message_groups.push(current_group);
         }
         _.each(message_groups, function (messages_in_group) {
-            self._rerender_header(messages_in_group);
+            self._rerender_header(messages_in_group, message_content_edited);
         });
     },
 
@@ -888,6 +963,9 @@ MessageListView.prototype = {
             this.render(slice_to_render, 'top', false);
             this._render_win_start -= slice_to_render.length;
         }
+
+        // See comment for maybe_rerender call in the append code path
+        this.maybe_rerender();
     },
 
     rerender_the_whole_thing: function MessageListView__rerender_the_whole_thing() {
@@ -917,10 +995,10 @@ MessageListView.prototype = {
     },
 
     render_trailing_bookend: function MessageListView_render_trailing_bookend(
-                                trailing_bookend_content, subscribed) {
+                                trailing_bookend_content, subscribed, show_button) {
         var rendered_trailing_bookend = $(templates.render('bookend', {
             bookend_content: trailing_bookend_content,
-            trailing: true,
+            trailing: show_button,
             subscribed: subscribed,
         }));
         rows.get_table(this.table_name).append(rendered_trailing_bookend);

@@ -1,8 +1,4 @@
-from __future__ import absolute_import
-from __future__ import print_function
 from typing import Callable, List, Optional
-from six.moves import range
-import re
 
 class TemplateParserException(Exception):
     def __init__(self, message):
@@ -19,14 +15,14 @@ class TokenizationException(Exception):
         self.message = message
         self.line_content = line_content
 
-class TokenizerState(object):
+class TokenizerState:
     def __init__(self):
         # type: () -> None
         self.i = 0
         self.line = 1
         self.col = 1
 
-class Token(object):
+class Token:
     def __init__(self, kind, s, tag, line, col, line_span):
         # type: (str, str, str, int, int, int) -> None
         self.kind = kind
@@ -187,7 +183,7 @@ def validate(fn=None, text=None, check_indent=True):
 
     tokens = tokenize(text)
 
-    class State(object):
+    class State:
         def __init__(self, func):
             # type: (Callable[[Token], None]) -> None
             self.depth = 0
@@ -208,7 +204,7 @@ def validate(fn=None, text=None, check_indent=True):
     def start_tag_matcher(start_token):
         # type: (Token) -> None
         state.depth += 1
-        start_tag = start_token.tag
+        start_tag = start_token.tag.strip('~')
         start_line = start_token.line
         start_col = start_token.col
 
@@ -217,7 +213,7 @@ def validate(fn=None, text=None, check_indent=True):
         def f(end_token):
             # type: (Token) -> None
 
-            end_tag = end_token.tag
+            end_tag = end_token.tag.strip('~')
             end_line = end_token.line
             end_col = end_token.col
 
@@ -289,6 +285,7 @@ def is_django_block_tag(tag):
         'blocktrans',
         'trans',
         'raw',
+        'with',
     ]
 
 def get_handlebars_tag(text, i):

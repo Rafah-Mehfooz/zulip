@@ -6,6 +6,10 @@ var meta = {
     loaded: false,
 };
 
+exports.reset = function () {
+    meta.loaded = false;
+};
+
 function get_user_info(user_id) {
     var self = {};
     self.user_row = $("tr.user_row[data-user-id='" + user_id + "']");
@@ -86,20 +90,14 @@ function failed_listing_users(xhr) {
 }
 
 function populate_users(realm_people_data) {
-    var users_table = $("#admin_users_table");
-    var deactivated_users_table = $("#admin_deactivated_users_table");
-    var bots_table = $("#admin_bots_table");
-    // Clear table rows, but not the table headers
-    users_table.find("tr.user_row").remove();
-    deactivated_users_table.find("tr.user_row").remove();
-    bots_table.find("tr.user_row").remove();
-
     var active_users = [];
     var deactivated_users = [];
     var bots = [];
     _.each(realm_people_data.members, function (user) {
         user.is_active_human = user.is_active && !user.is_bot;
         if (user.is_bot) {
+            // Convert bot type id to string for viewing to the users.
+            user.bot_type = settings_bots.type_id_to_string(user.bot_type);
             bots.push(user);
         } else if (user.is_active) {
             active_users.push(user);
@@ -112,36 +110,92 @@ function populate_users(realm_people_data) {
     deactivated_users = _.sortBy(deactivated_users, 'full_name');
     bots = _.sortBy(bots, 'full_name');
 
-    var bots_table_html = "";
-    _.each(bots, function (user) {
-        var bot_html = templates.render("admin_user_list", {user: user});
-        bots_table_html = bots_table_html.concat(bot_html);
-    });
-    bots_table.append(bots_table_html);
+    var update_scrollbar = function ($sel) {
+        return function () {
+            ui.update_scrollbar($sel);
+        };
+    };
 
-    _.each(active_users, function (user) {
-        var activity_rendered;
-        var row = $(templates.render("admin_user_list", {user: user}));
-        if (people.is_current_user(user.email)) {
-            activity_rendered = timerender.render_date(new XDate());
-        } else {
-            var last_active_date = presence.last_active_date(user.user_id);
-            if (last_active_date) {
-                activity_rendered = timerender.render_date(last_active_date);
+    var $bots_table = $("#admin_bots_table");
+    list_render($bots_table, bots, {
+        name: "admin_bot_list",
+        modifier: function (item) {
+            return templates.render("admin_user_list", { user: item, can_modify: page_params.is_admin });
+        },
+        filter: {
+            element: $bots_table.closest(".settings-section").find(".search"),
+            callback: function (item, value) {
+                return (
+                    item.full_name.toLowerCase().indexOf(value) >= 0 ||
+                    item.email.toLowerCase().indexOf(value) >= 0
+                );
+            },
+            onupdate: update_scrollbar($bots_table),
+        },
+    }).init();
+
+    var $users_table = $("#admin_users_table");
+    list_render($users_table, active_users, {
+        name: "users_table_list",
+        modifier: function (item) {
+            var activity_rendered;
+            var today = new XDate();
+            if (people.is_current_user(item.email)) {
+                activity_rendered = timerender.render_date(today, undefined, today);
+            } else if (presence.presence_info[item.user_id]) {
+                // XDate takes number of milliseconds since UTC epoch.
+                var last_active = presence.presence_info[item.user_id].last_active * 1000;
+
+                if (!isNaN(last_active)) {
+                    var last_active_date = new XDate(last_active);
+                    activity_rendered = timerender.render_date(last_active_date, undefined, today);
+                } else {
+                    activity_rendered = $("<span></span>").text(i18n.t("Never"));
+                }
             } else {
                 activity_rendered = $("<span></span>").text(i18n.t("Unknown"));
             }
-        }
-        row.find(".last_active").append(activity_rendered);
-        users_table.append(row);
+
+            var $row = $(templates.render("admin_user_list", {user: item, can_modify: page_params.is_admin}));
+
+            $row.find(".last_active").append(activity_rendered);
+
+            return $row;
+        },
+        filter: {
+            element: $users_table.closest(".settings-section").find(".search"),
+            callback: function (item, value) {
+                return (
+                    item.full_name.toLowerCase().indexOf(value) >= 0 ||
+                    item.email.toLowerCase().indexOf(value) >= 0
+                );
+            },
+            onupdate: update_scrollbar($users_table),
+        },
+    }).init();
+
+    var $deactivated_users_table = $("#admin_deactivated_users_table");
+    list_render($deactivated_users_table, deactivated_users, {
+        name: "deactivated_users_table_list",
+        modifier: function (item) {
+            return templates.render("admin_user_list", { user: item, can_modify: page_params.is_admin });
+        },
+        filter: {
+            element: $deactivated_users_table.closest(".settings-section").find(".search"),
+            callback: function (item, value) {
+                return (
+                    item.full_name.toLowerCase().indexOf(value) >= 0 ||
+                    item.email.toLowerCase().indexOf(value) >= 0
+                );
+            },
+            onupdate: update_scrollbar($deactivated_users_table),
+        },
+    }).init();
+
+    [$bots_table, $users_table, $deactivated_users_table].forEach(function ($o) {
+        ui.set_up_scrollbar($o.closest(".progressive-table-wrapper"));
     });
 
-    var deactivated_table_html = "";
-    _.each(deactivated_users, function (user) {
-        var user_html = templates.render("admin_user_list", {user: user});
-        deactivated_table_html = deactivated_table_html.concat(user_html);
-    });
-    deactivated_users_table.append(deactivated_table_html);
     loading.destroy_indicator($('#admin_page_users_loading_indicator'));
     loading.destroy_indicator($('#admin_page_bots_loading_indicator'));
     loading.destroy_indicator($('#admin_page_deactivated_users_loading_indicator'));
@@ -189,7 +243,7 @@ exports.on_load_success = function (realm_people_data) {
 
         if ($("#deactivation_user_modal .email").html() !== email) {
             blueslip.error("User deactivation canceled due to non-matching fields.");
-            ui_report.message("Deactivation encountered an error. Please reload and try again.",
+            ui_report.message(i18n.t("Deactivation encountered an error. Please reload and try again."),
                $("#home-error"), 'alert-error');
         }
         $("#deactivation_user_modal").modal("hide");
@@ -294,7 +348,7 @@ exports.on_load_success = function (realm_people_data) {
             },
             error: function (xhr) {
                 var status = row.find(".admin-user-status");
-                ui_report.error(i18n.t("Failed!"), xhr, status);
+                ui_report.error(i18n.t("Failed"), xhr, status);
             },
         });
     });
@@ -325,7 +379,7 @@ exports.on_load_success = function (realm_people_data) {
             },
             error: function (xhr) {
                 var status = row.find(".admin-user-status");
-                ui_report.error(i18n.t("Failed!"), xhr, status);
+                ui_report.error(i18n.t("Failed"), xhr, status);
             },
         });
     });
@@ -383,7 +437,7 @@ exports.on_load_success = function (realm_people_data) {
                     ui_report.success(i18n.t('Updated successfully!'), admin_status);
                 },
                 error: function () {
-                    ui_report.error(i18n.t('Update failed!'), admin_status);
+                    ui_report.error(i18n.t('Failed'), admin_status);
                 },
             });
         });

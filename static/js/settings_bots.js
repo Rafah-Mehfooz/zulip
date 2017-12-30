@@ -17,6 +17,13 @@ function is_local_part(value, element) {
     return this.optional(element) || /^[\-!#$%&'*+\/=?\^_`{}|~0-9A-Z]+(\.[\-!#$%&'*+\/=?\^_`{}|~0-9A-Z]+)*$/i.test(value);
 }
 
+exports.type_id_to_string = function (type_id) {
+    var name = _.find(page_params.bot_types, function (bot_type) {
+        return bot_type.type_id === type_id;
+    }).name;
+    return i18n.t(name);
+};
+
 function render_bots() {
     $('#active_bots_list').empty();
     $('#inactive_bots_list').empty();
@@ -25,6 +32,7 @@ function render_bots() {
         add_bot_row({
             name: elem.full_name,
             email: elem.email,
+            type: exports.type_id_to_string(elem.bot_type),
             avatar_url: elem.avatar_url,
             api_key: elem.api_key,
             is_active: elem.is_active,
@@ -32,10 +40,16 @@ function render_bots() {
         });
     });
 
-    if ($("#bots_lists_navbar .active-bots-tab").hasClass("active")) {
+    if ($("#bots_lists_navbar .add-a-new-bot-tab").hasClass("active")) {
+        $("#add-a-new-bot-form").show();
+        $("#active_bots_list").hide();
+        $("#inactive_bots_list").hide();
+    } else if ($("#bots_lists_navbar .active-bots-tab").hasClass("active")) {
+        $("#add-a-new-bot-form").hide();
         $("#active_bots_list").show();
         $("#inactive_bots_list").hide();
     } else {
+        $("#add-a-new-bot-form").hide();
         $("#active_bots_list").hide();
         $("#inactive_bots_list").show();
     }
@@ -56,41 +70,44 @@ exports.generate_zuliprc_content = function (email, api_key) {
            "\n";
 };
 
+function bot_name_from_email(email) {
+    return email.substring(0, email.indexOf("-bot@"));
+}
+
+exports.generate_flaskbotrc_content = function (email, api_key) {
+    return "[" + bot_name_from_email(email) + "]" +
+           "\nemail=" + email +
+           "\nkey=" + api_key +
+           "\nsite=" + page_params.realm_uri +
+           "\n";
+};
+
 exports.set_up = function () {
-    $("#api_key_value").text("");
-    $("#get_api_key_box").hide();
-    $("#show_api_key_box").hide();
-    $("#api_key_button_box").show();
-
-    $('#api_key_button').click(function () {
-        if (page_params.password_auth_enabled !== false) {
-            $("#get_api_key_box").show();
-        } else {
-            // Skip the password prompt step
-            $("#get_api_key_box form").submit();
-        }
-        $("#api_key_button_box").hide();
+    $('#payload_url_inputbox').hide();
+    $('#create_payload_url').val('');
+    $('#service_name_list').hide();
+    page_params.realm_embedded_bots.forEach(function (bot_name) {
+        $('#select_service_name').append($('<option>', {
+            value: bot_name,
+            text: bot_name,
+        }));
     });
+    $('#select_service_name').val('converter'); // TODO: Use 'select a bot'.
 
-    $("#get_api_key_box").hide();
-    $("#show_api_key_box").hide();
-    $("#get_api_key_box form").ajaxForm({
-        dataType: 'json', // This seems to be ignored. We still get back an xhr.
-        success: function (resp, statusText, xhr) {
-            var result = JSON.parse(xhr.responseText);
-            var settings_status = $('#account-settings-status').expectOne();
+    $('#download_flaskbotrc').click(function () {
+        var OUTGOING_WEBHOOK_BOT_TYPE_INT = 3;
+        var content = "";
+        $("#active_bots_list .bot-information-box").each(function () {
+            var bot_info = $(this);
+            var email = bot_info.find(".email .value").text();
+            var api_key = bot_info.find(".api_key .api-key-value-and-button .value").text();
+            var bot = bot_data.get(email);
 
-            $("#get_api_key_password").val("");
-            $("#api_key_value").text(result.api_key);
-            $("#show_api_key_box").show();
-            $("#get_api_key_box").hide();
-            settings_status.hide();
-        },
-        error: function (xhr) {
-            ui_report.error(i18n.t("Error getting API key"), xhr, $('#account-settings-status').expectOne());
-            $("#show_api_key_box").hide();
-            $("#get_api_key_box").show();
-        },
+            if (bot.bot_type === OUTGOING_WEBHOOK_BOT_TYPE_INT) {
+                content += exports.generate_flaskbotrc_content(email, api_key);
+            }
+        });
+        $(this).attr("href", "data:application/octet-stream;charset=utf-8," + encodeURIComponent(content));
     });
 
     // TODO: render bots xxxx
@@ -105,6 +122,11 @@ exports.set_up = function () {
 
 
     var create_avatar_widget = avatar.build_bot_create_widget();
+    var OUTGOING_WEBHOOK_BOT_TYPE = '3';
+    var GENERIC_BOT_TYPE = '1';
+    var EMBEDDED_BOT_TYPE = '4';
+
+    var GENERIC_INTERFACE = '1';
 
     $('#create_bot_form').validate({
         errorClass: 'text-error',
@@ -112,13 +134,26 @@ exports.set_up = function () {
             $('#bot_table_error').hide();
         },
         submitHandler: function () {
+            var bot_type = $('#create_bot_type :selected').val();
             var full_name = $('#create_bot_name').val();
             var short_name = $('#create_bot_short_name').val() || $('#create_bot_short_name').text();
+            var payload_url = $('#create_payload_url').val();
+            var interface_type = $('#create_interface_type').val();
+            var service_name = $('#select_service_name :selected').val();
             var formData = new FormData();
 
             formData.append('csrfmiddlewaretoken', csrf_token);
+            formData.append('bot_type', bot_type);
             formData.append('full_name', full_name);
             formData.append('short_name', short_name);
+
+            // If the selected bot_type is Outgoing webhook
+            if (bot_type === OUTGOING_WEBHOOK_BOT_TYPE) {
+                formData.append('payload_url', JSON.stringify(payload_url));
+                formData.append('interface_type', interface_type);
+            } else if (bot_type === EMBEDDED_BOT_TYPE) {
+                formData.append('service_name', service_name);
+            }
             jQuery.each($('#bot_avatar_file_input')[0].files, function (i, file) {
                 formData.append('file-'+i, file);
             });
@@ -133,8 +168,16 @@ exports.set_up = function () {
                     $('#bot_table_error').hide();
                     $('#create_bot_name').val('');
                     $('#create_bot_short_name').val('');
+                    $('#create_payload_url').val('');
+                    $('#payload_url_inputbox').hide();
+                    $('#create_bot_type').val(GENERIC_BOT_TYPE);
+                    $('#select_service_name').val('xkcd'); // TODO: Later we can change this to hello bot or similar
+                    $('#service_name_list').hide();
                     $('#create_bot_button').show();
+                    $('#create_interface_type').val(GENERIC_INTERFACE);
                     create_avatar_widget.clear();
+                    $("#bots_lists_navbar .add-a-new-bot-tab").removeClass("active");
+                    $("#bots_lists_navbar .active-bots-tab").addClass("active");
                 },
                 error: function (xhr) {
                     $('#bot_table_error').text(JSON.parse(xhr.responseText).msg).show();
@@ -144,6 +187,24 @@ exports.set_up = function () {
                 },
             });
         },
+    });
+
+    $("#create_bot_type").on("change", function () {
+        var bot_type = $('#create_bot_type :selected').val();
+        // For "generic bot" or "incoming webhook" both these fields need not be displayed.
+        $('#service_name_list').hide();
+        $('#select_service_name').removeClass('required');
+
+        $('#payload_url_inputbox').hide();
+        $('#create_payload_url').removeClass('required');
+        if (bot_type === OUTGOING_WEBHOOK_BOT_TYPE) {
+            $('#payload_url_inputbox').show();
+            $('#create_payload_url').addClass('required');
+
+        } else if (bot_type === EMBEDDED_BOT_TYPE) {
+            $('#service_name_list').show();
+            $('#select_service_name').addClass('required');
+        }
     });
 
     $("#active_bots_list").on("click", "button.delete_bot", function (e) {
@@ -265,6 +326,7 @@ exports.set_up = function () {
                         edit_button.show();
                         show_row_again();
                         avatar_widget.clear();
+                        typeahead_helper.clear_rendered_persons();
 
                         bot_info.find('.name').text(full_name);
                         if (data.avatar_url) {
@@ -297,32 +359,27 @@ exports.set_up = function () {
         ));
     });
 
-    $("#download_zuliprc").on("click", function () {
-        $(this).attr("href", exports.generate_zuliprc_uri(
-            people.my_current_email(),
-            $("#api_key_value").text()
-        ));
-    });
+    $("#bots_lists_navbar .add-a-new-bot-tab").click(function (e) {
+        e.preventDefault();
+        e.stopPropagation();
 
-    $("#show_api_key_box").on("click", "button.regenerate_api_key", function () {
-        channel.post({
-            url: '/json/users/me/api_key/regenerate',
-            idempotent: true,
-            success: function (data) {
-                $('#api_key_value').text(data.api_key);
-            },
-            error: function (xhr) {
-                $('#user_api_key_error').text(JSON.parse(xhr.responseText).msg).show();
-            },
-        });
+        $("#bots_lists_navbar .add-a-new-bot-tab").addClass("active");
+        $("#bots_lists_navbar .active-bots-tab").removeClass("active");
+        $("#bots_lists_navbar .inactive-bots-tab").removeClass("active");
+        $("#add-a-new-bot-form").show();
+        $("#active_bots_list").hide();
+        $("#inactive_bots_list").hide();
+        $('#bot_table_error').hide();
     });
 
     $("#bots_lists_navbar .active-bots-tab").click(function (e) {
         e.preventDefault();
         e.stopPropagation();
 
+        $("#bots_lists_navbar .add-a-new-bot-tab").removeClass("active");
         $("#bots_lists_navbar .active-bots-tab").addClass("active");
         $("#bots_lists_navbar .inactive-bots-tab").removeClass("active");
+        $("#add-a-new-bot-form").hide();
         $("#active_bots_list").show();
         $("#inactive_bots_list").hide();
     });
@@ -331,10 +388,13 @@ exports.set_up = function () {
         e.preventDefault();
         e.stopPropagation();
 
+        $("#bots_lists_navbar .add-a-new-bot-tab").removeClass("active");
         $("#bots_lists_navbar .active-bots-tab").removeClass("active");
         $("#bots_lists_navbar .inactive-bots-tab").addClass("active");
+        $("#add-a-new-bot-form").hide();
         $("#active_bots_list").hide();
         $("#inactive_bots_list").show();
+        $('#bot_table_error').hide();
     });
 
 };

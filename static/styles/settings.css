@@ -39,6 +39,20 @@ label {
     min-width: 200px;
 }
 
+.new-style button.button i.fa.fa-pencil {
+    margin-left: 3px;
+}
+
+.new-style #account-settings .grid label {
+    min-width: 120px;
+}
+
+.new-style #account-settings .grid .warning {
+    display: block;
+    width: calc(100% - 20px - 5px);
+    text-align: right;
+}
+
 .new-style .grid .warning {
     display: inline-block;
     vertical-align: top;
@@ -55,6 +69,10 @@ label {
     margin: 6px 0px 0px 0px;
 }
 
+.new-style .button ul {
+    text-align: left;
+}
+
 /* this is because the input[type=text] is also 200px wide but has
    12px of padding and 2px worth of borders. These don't apply to
    buttons however. */
@@ -64,15 +82,36 @@ label {
 
 .user-avatar-section,
 .realm-icon-section {
+    position: relative;
+}
+
+.user-avatar-section {
     float: right;
-    background-color: #fff;
-    margin: 20px 0px;
-    padding: 20px;
+}
+
+.user-avatar-section .avatar-controls {
+    margin-top: 20px;
+
+    box-shadow: none;
+}
+
+.realm-icon-section {
+    float: none;
+    display: inline-block;
 }
 
 .user-avatar-section .inline-block,
 .realm-icon-section .inline-block {
-    display: block;
+    margin: 10px 20px 0px 0px;
+    vertical-align: top;
+
+    border-radius: 4px;
+    box-shadow: 0px 0px 10px hsla(0, 0%, 0%, 0.1);
+}
+
+.admin-realm-description {
+    height: 16em;
+    width: 36em;
 }
 
 .padded-container {
@@ -104,11 +143,27 @@ label {
 }
 
 .table tbody {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
 }
 
 .table-condensed td {
     vertical-align: middle;
+}
+
+#settings_content table + .progressive-table-wrapper table tr.user_row td:first-of-type {
+    width: 20%;
+}
+
+#uploaded_files_table > tr > td:nth-of-type(4),
+#uploaded_files_table > tr > td:nth-of-type(5),
+.upload-size,
+.upload-actions {
+    width: 15%;
+}
+
+#uploaded_files_table > tr > td:nth-of-type(1),
+.upload-file-name {
+    width: 30%;
 }
 
 td .button {
@@ -118,15 +173,13 @@ td .button {
 
 .settings-section {
     display: none;
-    background-color: #fafafa;
-    border-radius: 2px;
+
+    width: calc(100% - 40px);
     margin: 20px;
-    border: 1px solid #dfdfdf;
-    border-top: 5px solid #dfdfdf;
 }
 
 #organization .settings-section {
-    display: block;
+    display: inline-block;
 }
 
 .settings-wrapper {
@@ -140,9 +193,9 @@ td .button {
 }
 
 .settings-section .settings-section-title {
-    font-size: 1.2em;
-    font-weight: 300;
-    padding: 10px;
+    font-size: 1.4em;
+    font-weight: 500;
+    margin: 0px 0px 10px 0px;
 }
 
 .settings-section .settings-section-title.transparent {
@@ -151,7 +204,6 @@ td .button {
 }
 
 .settings-section form {
-    padding: 0px 20px;
     margin: 0;
 }
 
@@ -163,11 +215,63 @@ td .button {
     border-bottom: none;
 }
 
+.settings-section .table-striped thead th {
+    background-color: inherit;
+    color: inherit;
+    border-top: 1px solid hsla(0, 0%, 0%, 0.2) !important;
+    border-bottom: 1px solid hsla(0, 0%, 0%, 0.2) !important;
+}
+
+#admin-user-list .table tr:first-of-type td,
+#admin-bot-list .table tr:first-of-type td {
+    border-top: none;
+}
+
+.settings-section input[type=text].search {
+    float: right;
+    margin: 2px 5px 2px 0px;
+    padding: 2px 5px;
+    font-size: 0.9em;
+}
+
+.settings-section .settings-section-title .table-title {
+    display: inline-block;
+    padding: 6px 0px;
+    margin-left: 5px;
+}
+
+.settings-section .settings-section-title .table-title i {
+    margin-right: 5px;
+}
+
+.settings-section .tip {
+    position: relative;
+    display: block;
+    background-color: hsl(46, 63%, 95%);
+    border: 1px solid hsl(49, 20%, 84%);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: hsl(0, 0%, 40%);
+}
+
+.settings-section .tip::before {
+    content: "\f0a2";
+
+    display: inline;
+    margin-right: 8px;
+
+    font-family: FontAwesome, "Yantramanav", Source Sans Pro;
+    font-weight: 600;
+}
+
 .dynamic-input {
     display: inline-block;
     padding: 5px;
-    background-color: #FFF;
-    border: 1px solid #CCC;
+    background-color: hsl(0, 0%, 100%);
+    border: 1px solid hsl(0, 0%, 80%);
     border-radius: 3px;
     transition: box-shadow 0.3s ease;
     min-width: 208px;
@@ -175,7 +279,7 @@ td .button {
 
 .dynamic-input:hover {
     outline: none;
-    box-shadow: 0px 0px 4px rgba(56,177,232,1);
+    box-shadow: 0px 0px 4px hsla(199, 79%, 56%, 1.0);
 }
 
 .dynamic-input div,
@@ -194,12 +298,12 @@ td .button {
 
 .dynamic-input div:empty::after {
     content: "username";
-    color: #aaa;
+    color: hsl(0, 0%, 66%);
 }
 
 .dynamic-input.bot_user_name div:empty::after {
     content: "bot_user_name";
-    color: #aaa;
+    color: hsl(0, 0%, 66%);
 }
 
 .button,
@@ -220,137 +324,54 @@ input[type=checkbox] + .inline-block {
     margin-left: 10px;
 }
 
+.admin-realm-form h3 {
+    margin-bottom: 0px;
+}
+
+.organization-settings-parent div:first-of-type {
+    margin-top: 10px;
+}
+
+.organization-submission {
+    margin-top: 0px;
+}
+
+#default_language {
+    margin-left: 20px;
+}
+
 #user-settings-avatar,
 #realm-icon-section {
     border-radius: 5px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+    box-shadow: 0px 0px 10px hsla(0, 0%, 0%, 0.1);
 }
 
 input[type=checkbox].inline-block {
     margin: -2px 0px 0px 0px;
 }
 
-#attachments_list .attachment-item {
-    border-bottom: 1px solid #eee;
+.remove-attachment {
+    margin-right: 5px       !important;
+    font-size: 1.1em        !important;
+    padding-left: 0px       !important;
 }
 
-#attachments_list .attachment-item .list-container {
-    position: relative;
-    padding: 10px;
-    width: 100%;
-}
-
-#attachments_list .attachment-item .list-container .remove-attachment {
-    margin-top: 10px;
-    margin-right: 5px;
-    font-size: 1.2em;
-    color: #e29595;
-}
-
-#attachments_list .attachment-item .list-container .file-icon {
-    display: inline-block;
-    vertical-align: top;
-    margin-right: 8px;
-    width: 40px;
-    height: 40px;
-
-    font-weight: 600;
-    color: #fff;
-
-    background: -webkit-linear-gradient(-45deg, #43C6AC , #70e6ce);
-    background: linear-gradient(-45deg, #43C6AC , #70e6ce);
-
-    box-sizing: border-box;
-    border-radius: 4px;
-}
-
-#attachments_list .attachment-item .list-container .file-icon .extension {
-    font-size: 1.1em;
-    text-align: center;
-    margin-top: 10px;
-}
-
-#attachments_list .attachment-item .list-container .file-icon .extension.small {
-    margin-top: 11px;
-    font-size: 0.8em;
-}
-
-#attachments_list .attachment-item .list-container .file-icon .extension.no-extension {
-    margin-top: 12px;
-}
-
-#attachments_list .attachment-item .list-container .information {
-    display: inline-block;
-    vertical-align: top;
-    margin-top: -4px;
-}
-
-#attachments_list .attachment-messages {
-    height: 25px;
-}
-
-#attachments_list .attachment-messages .ind-message {
-    display: inline-block;
-    border-radius: 4px;
-    overflow: hidden;
-
-    border: 1px solid #aaa;
-
-    transition: all 0.2s ease;
-}
-
-#attachments_list .attachment-messages .ind-message > div {
-    display: inline-block;
-    vertical-align: top;
-}
-
-#attachments_list .attachment-messages .ind-message .message-id {
-    padding: 2px 4px 1px 4px;
-    background-color: #aaa;
-    color: #fff;
-}
-
-#attachments_list .attachment-messages .ind-message:hover {
-    border: 1px solid #888;
-}
-
-#attachments_list .attachment-messages .ind-message:hover .message-id {
-    background-color: #888;
-}
-
-#attachments_list .attachment-messages .ind-message {
-    color: #aaa;
-    text-decoration: none;
-}
-
-#attachments_list .attachment-messages .message-id {
-    display: inline-block;
-    padding: 2px 4px 1px 2px;
-}
-
-#attachments_list .attachment-messages .message-date {
-    display: inline-block;
-    padding: 2px 4px 1px 2px;
+#download_attachment {
+    padding-left: 0px;
+    border-left: 0px;
 }
 
 .grey-bg {
-    background: #e3e3e3;
+    background: hsl(0, 0%, 89%);
     padding: 10px;
-    width: 90%;
-    margin: 15px auto;
-    box-shadow: 0px 0px 2px rgba(0,0,0,0.5);
+    margin: 20px auto;
+    box-shadow: 0px 0px 2px hsla(0, 0%, 0%, 0.5);
     position: relative;
     font-size: 14px;
 }
 
 .green-bg {
-    background-color: #cbe3cb;
-}
-
-.new-default-stream-section-title {
-    font-size: 18px;
-    font-weight: 300;
-    padding-bottom: 10px;
+    background-color: hsl(120, 29%, 84%);
 }
 
 .remove-alert-word {
@@ -358,7 +379,6 @@ input[type=checkbox].inline-block {
 }
 
 @media (max-width: 480px) {
-
     #pw_strength {
         margin: auto;
     }
@@ -367,7 +387,6 @@ input[type=checkbox].inline-block {
     #settings .settings-section .account-settings-form,
     #settings .settings-section .new-bot-form,
     #settings .settings-section .new-alert-word-form,
-    #emoji-settings .new-emoji-form,
     #filter-settings .new-filter-form,
     #settings .settings-section .notification-settings-form,
     #settings .settings-section .display-settings-form,
@@ -379,7 +398,6 @@ input[type=checkbox].inline-block {
     #settings .settings-section .account-settings-form .control-label,
     #settings .settings-section .new-bot-form .control-label,
     #settings .settings-section .new-alert-word-form .control-label,
-    #emoji-settings .new-emoji-form .control-label,
     #filter-settings .new-filter-form .control-label,
     #settings .settings-section .edit-bot-form-box .control-label {
         display: block;
@@ -395,25 +413,29 @@ input[type=checkbox].inline-block {
     #settings .settings-section .account-settings-form .controls,
     #settings .settings-section .new-bot-form .controls,
     #settings .settings-section .new-alert-word-form button,
-    #emoji-settings .new-emoji-form .controls,
     #filter-settings .new-filter-form .controls,
     #settings .settings-section .edit-bot-form-box .controls {
         margin: auto;
         text-align: center;
     }
-
 }
 
 #organization .settings-section .settings-section-icon,
 #settings .settings-section .settings-section-icon {
     margin-right: 8px;
 }
+
 #notification-settings .notification-reminder {
-    text-align: center;
+    text-align: left;
+}
+
+#realm_notifications_stream_label > button,
+#realm_signup_notifications_stream_label > button {
+    margin: 0px 5px;
 }
 
 .control-label-disabled {
-    color: #d3d3d3;
+    color: hsl(0, 0%, 82%);
 }
 
 .disableable {
@@ -450,9 +472,42 @@ input[type=checkbox].inline-block {
     max-width: 100%;
 }
 
-.admin-table-wrapper {
-    width: 90%;
-    margin: 0 auto;
+.add-new-emoji-box {
+    margin-bottom: 20px;
+}
+
+.add-new-emoji-box .new-emoji-form {
+    margin: 10px 0px;
+}
+
+.add-new-emoji-box input[type=text],
+.add-new-default-stream-box input[type=text] {
+    padding: 6px;
+}
+
+.add-new-emoji-box #emoji-file-name,
+.add-new-emoji-box #emoji_file_input_error {
+    width: 0;
+    top: -19px;
+    left: 3px;
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+
+    white-space: nowrap;
+    font-style: italic;
+}
+
+.add-new-emoji-box #emoji-file-name {
+    color: hsl(0, 0%, 66%);
+}
+
+.add-new-filter-box button {
+    margin-left: calc(10em + 20px) !important;
+}
+
+.grey-box .wrapper {
+    margin: 10px 0px;
 }
 
 .admin_filters_table {
@@ -462,6 +517,16 @@ input[type=checkbox].inline-block {
 #admin-filter-pattern-status,
 #admin-filter-format-status {
     margin: 20px 0 0 0;
+}
+
+.progressive-table-wrapper {
+    position: relative;
+    max-height: calc(95vh - 220px);
+    overflow: auto;
+}
+
+#admin-default-streams-list .progressive-table-wrapper {
+    max-height: calc(95vh - 280px);
 }
 
 .bots_list {
@@ -493,12 +558,12 @@ input[type=checkbox].inline-block {
 .bots_list .regenerate_bot_api_key {
     position: relative;
     margin-left: 5px;
-    color: #aaa;
+    color: hsl(0, 0%, 66%);
     transition: all 0.3s ease;
 }
 
 .bots_list .regenerate_bot_api_key:hover {
-    color: #444;
+    color: hsl(0, 0%, 27%);
 }
 
 .bots_list .edit-bot-buttons {
@@ -514,26 +579,26 @@ input[type=checkbox].inline-block {
 }
 
 .bots_list .edit-bot-buttons .sea-green {
-    color: #24cac2;
+    color: hsl(177, 70%, 46%);
 }
 
 .bots_list .edit-bot-buttons .blue {
-    color: #3ba4e6;
+    color: hsl(203, 77%, 56%);
 }
 
 .bots_list .edit-bot-buttons .danger-red {
-    color: #e29595;
+    color: hsl(0, 56%, 73%);
 }
 
 .bots_list .bot-information-box {
     position: relative;
     display: inline-block;
-    width: calc(33.3% - 10px);
-    max-height: 180px;
+    width: calc(50% - 10px);
+    max-height: 220px;
     margin: 5px;
 
-    background-color: #fff;
-    border: 1px solid #ddd;
+    background-color: hsl(0, 0%, 100%);
+    border: 1px solid hsl(0, 0%, 86%);
     border-radius: 4px;
     box-sizing: border-box;
 
@@ -546,7 +611,7 @@ input[type=checkbox].inline-block {
     width: 50px;
     border-radius: 4px;
     vertical-align: top;
-    box-shadow: 0px 0px 4px rgba(0,0,0,0.1);
+    box-shadow: 0px 0px 4px hsla(0, 0%, 0%, 0.1);
 }
 
 .bots_list .email {
@@ -579,7 +644,7 @@ input[type=checkbox].inline-block {
     font-weight: 300;
     text-transform: uppercase;
     font-weight: 600;
-    color: #aaa;
+    color: hsl(0, 0%, 66%);
 }
 
 .edit_bot h3 {
@@ -588,7 +653,7 @@ input[type=checkbox].inline-block {
 }
 
 #bots_lists_navbar .active a {
-    background-color: #FAFAFA;
+    background-color: hsl(0, 0%, 98%);
 }
 
 #inactive_bots_list .bot_info .reactivate_bot {
@@ -604,7 +669,7 @@ input[type=checkbox].inline-block {
 .edit_bot_form label {
     text-transform: uppercase;
     font-weight: 600;
-    color: #aaa;
+    color: hsl(0, 0%, 66%);
     margin-top: 5px;
 }
 
@@ -630,7 +695,6 @@ input[type=checkbox].inline-block {
 #get_api_key_box .control-label,
 .admin-emoji-form .control-label,
 .admin-filter-form .control-label,
-.default-stream-form .control-label,
 .edit_bot_form .control-label {
     width: 10em;
     text-align: right;
@@ -647,23 +711,18 @@ input[type=checkbox].inline-block {
     width: 8em;
 }
 
-#empty_alert_word_error {
-    display: none;
-    width: 90%;
-    margin: 0 auto;
-    margin-bottom: 15px;
-    padding: 10px;
-}
-
-#empty_alert_word_error .close {
-    position: inherit;
-}
-
-#alert_words_list,
 #attachments_list {
     list-style-type: none;
     margin: auto;
-    background-color: #fff;
+    background-color: hsl(0, 0%, 100%);
+}
+
+#alert_words_list {
+    margin: 0;
+}
+
+#alert_words_list li {
+    list-style-type: none;
 }
 
 #alert_words_list li.alert-word-item:last-child {
@@ -689,34 +748,75 @@ input[type=checkbox].inline-block {
     white-space: normal;
 }
 
+.emojiset_choices {
+    width: 250px;
+    margin-top: 10px;
+    padding: 0px 10px;
+}
+
+.emojiset_choices .emoji {
+    height: 22px;
+    width: 22px;
+}
+
+.emojiset_choices label {
+    border-bottom: 1px solid hsla(0, 0%, 0%, 0.2);
+    padding: 8px 0px 10px 0px;
+}
+
+.emojiset_choices label:last-of-type {
+    border-bottom: none;
+}
+
+.emojiset_choices label input[type=radio] {
+    position: relative;
+    top: -2px;
+    margin: 0px 5px 0px 0px;
+}
+
+.emojiset_choices label input[type=radio]:checked + span {
+    font-weight: 600;
+}
+
+.emojiset_choices .right {
+    float: right;
+}
+
 .open-user-form {
     min-width: initial !important;
 }
 
 #user-settings-avatar {
     border-radius: 5px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+    box-shadow: 0px 0px 10px hsla(0, 0%, 0%, 0.1);
     width: 200px;
     height: 200px;
+
+    transition: all 0.3s ease;
+}
+
+#user-settings-avatar:hover {
+    -webkit-filter: brightness(0.5);
 }
 
 #realm-settings-icon {
     border-radius: 5px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+    box-shadow: 0px 0px 10px hsla(0, 0%, 0%, 0.1);
     width: 100px;
     height: 100px;
-    margin-left: 25%;
-}
-/* -- new settings overlay -- */
-#settings_page {
-    min-height: 550px;
 }
 
+.invite-user-link i {
+    text-decoration: none;
+    margin-right: 5px;
+}
+
+/* -- new settings overlay -- */
 #settings_page {
     height: 95vh;
     width: 97vw;
-    margin: 2.5vh 1.5vw;
-    background-color: #fff;
+    max-width: 1024px;
+    margin: 2.5vh auto;
     overflow: hidden;
     border-radius: 4px;
 
@@ -731,21 +831,18 @@ input[type=checkbox].inline-block {
     position: relative;
     width: 250px;
     height: 100%;
-    min-height: 550px;
     overflow-y: auto;
     border-top-left-radius: 4px;
-    border-right: 1px solid #eee;
+    border-right: 1px solid hsl(0, 0%, 93%);
 }
 
 #settings_page .sidebar .tab-container {
-    background-color: #fff;
     padding: 6px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
 }
 
 #settings_page .sidebar .settings-list {
     position: relative;
-    z-index: 3;
 }
 
 #settings_page .content-wrapper {
@@ -760,7 +857,25 @@ input[type=checkbox].inline-block {
 #settings_page .content-wrapper .settings-header {
     width: 100%;
     height: 43px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
+}
+
+#settings_page .content-wrapper .settings-header h1 .section {
+    font-weight: 400;
+    color: inherit;
+    opacity: 0.6;
+}
+
+#settings_page .settings-header.mobile {
+    display: none;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
+}
+
+.settings-header.mobile .icon-vector-chevron-left {
+    float: left;
+    position: relative;
+    top: 14px;
+    left: 10px;
 }
 
 #settings_page .content-wrapper #settings_content {
@@ -770,6 +885,42 @@ input[type=checkbox].inline-block {
 
     float: left;
     overflow-y: auto;
+    overflow-x: hidden;
+
+    background-color: hsla(0, 0%, 0%, 0.02);
+}
+
+#settings_page .table-striped thead th {
+    background-color: inherit;
+    color: inherit;
+}
+
+#settings_page .table-striped thead th.active {
+    opacity: 1;
+    -webkit-transition: opacity 100ms ease-out;
+    -moz-transition: opacity 100ms ease-out;
+    -o-transition: opacity 100ms ease-out;
+    transition: opacity 100ms ease-out;
+}
+
+#settings_page .table-striped thead th.active:after {
+    content: " \f0d8";
+    white-space: pre;
+    display: inline-block;
+    font: normal normal normal 12px/1 FontAwesome;
+    font-size: inherit;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#settings_page .table-striped thead th.active.descend:after {
+    content: " \f0d7";
+}
+
+#settings_page input.search {
+    font-size: 0.9rem;
+    margin: 0px 0px 20px 0px;
 }
 
 #settings_page .form-sidebar {
@@ -780,8 +931,8 @@ input[type=checkbox].inline-block {
     width: 300px;
     height: calc(100% - 45px);
 
-    background-color: #fff;
-    border-left: 1px solid #ddd;
+    background-color: hsl(0, 0%, 100%);
+    border-left: 1px solid hsl(0, 0%, 86%);
 
     pointer-events: none;
     transition: all 0.3s ease;
@@ -812,9 +963,9 @@ input[type=checkbox].inline-block {
 }
 
 #settings_page .form-sidebar .title {
-    background-color: #fafafa;
+    background-color: hsl(0, 0%, 98%);
     padding: 10px 20px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
 }
 
 #settings_page .form-sidebar .title h1 {
@@ -839,8 +990,8 @@ input[type=checkbox].inline-block {
     text-align: center;
     text-transform: uppercase;
 
-    background-color: #edefef;
-    border-bottom: 1px solid #DDD;
+    background-color: hsl(180, 6%, 93%);
+    border-bottom: 1px solid hsl(0, 0%, 86%);
 }
 
 #settings_page .settings-header {
@@ -860,7 +1011,7 @@ input[type=checkbox].inline-block {
     position: absolute;
     top: 10px;
     right: 10px;
-    color: #AAA;
+    color: hsl(0, 0%, 66%);
     cursor: pointer;
 }
 
@@ -874,35 +1025,49 @@ input[type=checkbox].inline-block {
     cursor: pointer;
 }
 
-
 #deactivation_user_modal.fade.in {
     top: calc(50% - 120px);
 }
 
 #deactivate_self_modal {
-    box-shadow: 0px 0px 75px rgba(0,0,0,0.5);
-    outline: 10000px solid rgba(0,0,0,0.3);
+    box-shadow: 0px 0px 75px hsla(0, 0%, 0%, 0.5);
+    outline: 10000px solid hsla(0, 0%, 0%, 0.3);
     border: none;
     border-radius: 0px;
+}
+
+#id_realm_notifications_stream .dropdown-search > input[type=text],
+#id_realm_signup_notifications_stream .dropdown-search > input[type=text] {
+    margin: 9px;
+}
+
+#id_realm_notifications_stream .dropdown-list-body,
+#id_realm_signup_notifications_stream .dropdown-list-body {
+    position: relative;
+    height: auto;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 0;
+    display: block;
 }
 
 input[type=text]#settings_search {
     width: calc(100% - 10px - 2px);
     margin: 0px;
 
-    color: #555;
+    color: hsl(0, 0%, 33%);
     font-size: 0.9rem;
     padding: 3px 5px;
     outline: none;
-    border: 1px solid #DDD;
+    border: 1px solid hsl(0, 0%, 86%);
     border-radius: 4px;
 }
 
 input[type=text]:focus#settings_search {
     box-shadow: none;
-    border: 1px solid #BBB;
+    border: 1px solid hsl(0, 0%, 73%);
 
-    border-bottom: 1px solid #DDD;
+    border-bottom: 1px solid hsl(0, 0%, 86%);
 }
 
 input[type=text]#settings_search {
@@ -921,7 +1086,12 @@ input[type=text]#settings_search {
     outline: none;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid hsl(0, 0%, 93%);
+}
+
+#settings_page .sidebar li.border-top {
+    border-top: 1px solid hsl(0, 0%, 93%);
+    border-bottom: none;
 }
 
 #settings_page .sidebar li.no-border {
@@ -929,7 +1099,7 @@ input[type=text]#settings_search {
 }
 
 #settings_page .sidebar li.active {
-    background-color: #eee;
+    background-color: hsl(0, 0%, 93%);
 }
 
 #settings_page .sidebar li.active {
@@ -953,7 +1123,7 @@ input[type=text]#settings_search {
     margin: 10px 10px;
 
     font-size: 1.4em;
-    color: #888;
+    color: hsl(0, 0%, 53%);
 
     background-size: cover;
     background-repeat: no-repeat;
@@ -976,56 +1146,63 @@ input[type=text]#settings_search {
     position: absolute;
     bottom: 0px;
 }
-/* -- end new settings overlay -- */
-@media (min-width: 1850px) {
-    .bots_list .bot-information-box {
-        width: calc(20% - 10px);
-    }
-}
 
-@media (min-width: 1500px) and (max-width: 1850px) {
-    .bots_list .bot-information-box {
-        width: calc(25% - 10px);
-    }
-}
-
-@media (max-width: 1215px) {
-    .bots_list .bot-information-box {
-        width: calc(50% - 10px);
-    }
-
+@media (max-width: 953px) {
     .user-avatar-section,
     .realm-icon-section {
         float: none;
-        display: inline-block;
-    }
-
-    .user-avatar-section .inline-block,
-    .realm-icon-section .inline-block {
-        display: inline-block;
-        vertical-align: top;
-    }
-
-    .user-avatar-section .inline-block {
-        margin: 0px 10px;
-    }
-
-    .realm-icon-section .inline-block {
-        margin: 0px 25px;
-    }
-}
-
-@media (max-width: 856px) {
-    .user-avatar-section .inline-block,
-    .realm-icon-section .inline-block {
         display: block;
-        margin: 0;
     }
-}
 
-@media (max-width: 953px) {
+    .user-avatar-section .avatar-controls {
+        display: inline-block;
+        margin-top: 10px;
+    }
+
     #settings_content .warning {
         display: none;
+    }
+}
+
+@media (max-width: 786px) {
+    #user-settings-avatar {
+        width: 220px;
+        height: 220px;
+    }
+}
+
+@media (max-height: 530px) {
+    #settings_page .sidebar .sidebar-bottom-anchor {
+        position: static;
+    }
+
+    #settings_page .sidebar .sidebar-bottom-anchor .border-top {
+        border: none;
+    }
+}
+
+@media (max-width: 700px) {
+    #settings_page .settings-header.mobile {
+        display: block;
+    }
+
+    #settings_page .content-wrapper .settings-header {
+        display: none;
+    }
+
+    #settings_page .content-wrapper #settings_content {
+        height: 100%;
+    }
+
+    #settings_page .content-wrapper.right {
+        top: 47px;
+    }
+
+    #settings_page .sidebar {
+        float: left;
+        position: relative;
+        width: 250px;
+        height: 100%;
     }
 }
 
@@ -1062,10 +1239,43 @@ input[type=text]#settings_search {
     border-bottom: none;
 }
 
-#admin_users_table .last_active {
-    width: 15%;
+#admin-user-list .last_active {
+    width: 100px;
 }
 
-#user_timezone {
+thead .actions {
+    min-width: 230px;
+}
+
+#settings_page .display-settings-form select {
     width: 245px;
+}
+
+#attachments_list:empty {
+    padding: 10px;
+}
+
+.required-text:empty::after {
+    content: attr(data-empty);
+    display: block;
+
+    font-style: italic;
+    color: hsl(0, 0%, 66%);
+}
+
+.required-text.thick:empty::after {
+    width: 100%;
+}
+
+#payload_url_inputbox input[type=text] {
+    width: 340px;
+}
+
+#service_name_list input[type=text] {
+    width: 340px;
+}
+
+.invited-as-admin {
+    opacity: 0.5;
+    margin-left: 2px;
 }

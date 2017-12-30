@@ -1,4 +1,4 @@
-// See http://zulip.readthedocs.io/en/latest/pointer.html for notes on
+// See https://zulip.readthedocs.io/en/latest/subsystems/pointer.html for notes on
 // how this system is designed.
 
 var pointer = (function () {
@@ -8,7 +8,7 @@ var exports = {};
 exports.recenter_pointer_on_display = false;
 
 // Toggles re-centering the pointer in the window
-// when Home is next clicked by the user
+// when All Messages is next clicked by the user
 exports.suppress_scroll_pointer_update = false;
 exports.furthest_read = -1;
 exports.server_furthest_read = -1;
@@ -75,7 +75,7 @@ exports.fast_forward_pointer = function () {
 };
 
 exports.initialize = function initialize() {
-    pointer.server_furthest_read = page_params.initial_pointer;
+    pointer.server_furthest_read = page_params.pointer;
     if (page_params.orig_initial_pointer !== undefined &&
         page_params.orig_initial_pointer > pointer.server_furthest_read) {
         pointer.server_furthest_read = page_params.orig_initial_pointer;
@@ -96,9 +96,11 @@ exports.initialize = function initialize() {
         // Additionally, don't advance the pointer server-side
         // if the selected message is local-only
         if (event.msg_list === home_msg_list && page_params.narrow_stream === undefined) {
-            if (event.id > pointer.furthest_read &&
-                home_msg_list.get(event.id).local_id === undefined) {
-                pointer.furthest_read = event.id;
+            if (event.id > pointer.furthest_read) {
+                var msg = home_msg_list.get(event.id);
+                if (!msg.locally_echoed) {
+                    pointer.furthest_read = event.id;
+                }
             }
         }
 

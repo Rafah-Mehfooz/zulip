@@ -19,8 +19,29 @@ exports.sub_list_generator = function (lst, lower, upper) {
     };
 };
 
+exports.reverse_sub_list_generator = function (lst, lower, upper) {
+    // lower/upper has Python range semantics so if you pass
+    // in lower=5 and upper=8, you get elements 7/6/5
+    var i = upper - 1;
+
+    return {
+        next: function () {
+            if (i < lower) {
+                return;
+            }
+            var res = lst[i];
+            i -= 1;
+            return res;
+        },
+    };
+};
+
 exports.list_generator = function (lst) {
     return exports.sub_list_generator(lst, 0, lst.length);
+};
+
+exports.reverse_list_generator = function (lst) {
+    return exports.reverse_sub_list_generator(lst, 0, lst.length);
 };
 
 exports.fchain = function (outer_gen, get_inner_gen) {
@@ -94,6 +115,24 @@ exports.wrap_exclude = function (lst, val) {
     return exports.chain(inners);
 };
 
+exports.reverse_wrap_exclude = function (lst, val) {
+    if (val === undefined) {
+        return exports.reverse_list_generator(lst);
+    }
+
+    var i = _.indexOf(lst, val);
+    if (i < 0) {
+        return exports.reverse_list_generator(lst);
+    }
+
+    var inners = [
+         exports.reverse_sub_list_generator(lst, 0, i),
+         exports.reverse_sub_list_generator(lst, i+1, lst.length),
+    ];
+
+    return exports.chain(inners);
+};
+
 exports.filter = function (gen, filter_func) {
     return {
         next: function () {
@@ -110,6 +149,18 @@ exports.filter = function (gen, filter_func) {
     };
 };
 
+exports.map = function (gen, map_func) {
+    return {
+        next: function () {
+            var val = gen.next();
+            if (val === undefined) {
+                return;
+            }
+            return map_func(val);
+        },
+    };
+};
+
 exports.next_topic = function (streams, get_topics, has_unread_messages, curr_stream, curr_topic) {
     var stream_gen = exports.wrap(streams, curr_stream);
 
@@ -121,17 +172,77 @@ exports.next_topic = function (streams, get_topics, has_unread_messages, curr_st
         } else {
             gen = exports.list_generator(get_topics(which_stream));
         }
-        var has_unread = function (topic) {
-            return has_unread_messages(which_stream, topic);
-        };
 
-        return exports.filter(gen, has_unread);
+        function has_unread(topic) {
+            return has_unread_messages(which_stream, topic);
+        }
+
+        function make_object(topic) {
+            return {
+                stream: which_stream,
+                topic: topic,
+            };
+        }
+
+        gen = exports.filter(gen, has_unread);
+        gen = exports.map(gen, make_object);
+
+        return gen;
     }
 
     var outer_gen = exports.fchain(stream_gen, get_topic_gen);
     return outer_gen.next();
 };
 
+exports.get_next_topic = function (curr_stream, curr_topic) {
+    var my_streams = stream_sort.get_streams();
+
+    my_streams = _.filter(my_streams, function (stream_name) {
+        if (stream_data.name_in_home_view(stream_name)) {
+            return true;
+        }
+        if  (stream_name === curr_stream) {
+            // We can use n within a muted stream if we are
+            // currently narrowed to it.
+            return true;
+        }
+        return false;
+    });
+
+    function get_unmuted_topics(stream_name) {
+        var stream_id = stream_data.get_stream_id(stream_name);
+        var topics = topic_data.get_recent_names(stream_id);
+        topics = _.reject(topics, function (topic) {
+            return muting.is_topic_muted(stream_name, topic);
+        });
+        return topics;
+    }
+
+    function has_unread_messages(stream_name, topic) {
+        var stream_id = stream_data.get_stream_id(stream_name);
+        return unread.topic_has_any_unread(stream_id, topic);
+    }
+
+    return exports.next_topic(
+        my_streams,
+        get_unmuted_topics,
+        has_unread_messages,
+        curr_stream,
+        curr_topic
+    );
+};
+
+exports.get_next_stream = function (curr_stream) {
+    var my_streams = stream_sort.get_streams();
+    var stream_gen = exports.wrap_exclude(my_streams, curr_stream);
+    return stream_gen.next();
+};
+
+exports.get_prev_stream = function (curr_stream) {
+    var my_streams = stream_sort.get_streams();
+    var stream_gen = exports.reverse_wrap_exclude(my_streams, curr_stream);
+    return stream_gen.next();
+};
 
 return exports;
 }());

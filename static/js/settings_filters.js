@@ -6,6 +6,10 @@ var meta = {
     loaded: false,
 };
 
+exports.reset = function () {
+    meta.loaded = false;
+};
+
 exports.populate_filters = function (filters_data) {
     if (!meta.loaded) {
         return;
@@ -22,6 +26,7 @@ exports.populate_filters = function (filters_data) {
                         url_format_string: filter[1],
                         id: filter[2],
                     },
+                    can_modify: page_params.is_admin,
                 }
             )
         );
@@ -48,7 +53,7 @@ exports.set_up = function () {
             error: function (xhr) {
                 if (xhr.status.toString().charAt(0) === "4") {
                     btn.closest("td").html(
-                        $("<p>").addClass("text-error").text($.parseJSON(xhr.responseText).msg)
+                        $("<p>").addClass("text-error").text(JSON.parse(xhr.responseText).msg)
                     );
                 } else {
                     btn.text(i18n.t("Failed!"));
@@ -83,7 +88,7 @@ exports.set_up = function () {
                 ui_report.success(i18n.t("Custom filter added!"), filter_status);
             },
             error: function (xhr) {
-                var errors = $.parseJSON(xhr.responseText).errors;
+                var errors = JSON.parse(xhr.responseText).errors;
                 if (errors.pattern !== undefined) {
                     xhr.responseText = JSON.stringify({msg: errors.pattern});
                     ui_report.error(i18n.t("Failed"), xhr, pattern_status);

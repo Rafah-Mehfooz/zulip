@@ -11,8 +11,7 @@ exports.update_person = function update(person) {
     var person_obj = people.get_person_from_user_id(person.user_id);
 
     if (!person_obj) {
-        blueslip.error("Got update_person event for unexpected user",
-                       {email: person.user_id});
+        blueslip.error("Got update_person event for unexpected user " + person.user_id);
         return;
     }
 
@@ -20,7 +19,7 @@ exports.update_person = function update(person) {
         var user_id = person.user_id;
         var new_email = person.new_email;
 
-        narrow.update_email(user_id, new_email);
+        narrow_state.update_email(user_id, new_email);
         compose.update_email(user_id, new_email);
 
         if (people.is_my_user_id(person.user_id)) {
@@ -53,8 +52,10 @@ exports.update_person = function update(person) {
         person_obj.avatar_url = url;
 
         if (people.is_my_user_id(person.user_id)) {
-          page_params.avatar_url = url;
-          $("#user-settings-avatar").attr("src", url);
+            page_params.avatar_source = person.avatar_source;
+            page_params.avatar_url = url;
+            page_params.avatar_url_medium = person.avatar_url_medium;
+            $("#user-settings-avatar").attr("src", person.avatar_url_medium);
         }
 
         message_live_update.update_avatar(person_obj.user_id, person.avatar_url);

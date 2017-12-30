@@ -4,9 +4,12 @@ class zulip_ops::munin {
   $munin_packages = [# Packages needed for munin
                      "munin",
                      "autossh",
+                     # Packages needed for munin website
+                     'libapache2-mod-fcgid',
                      ]
   package { $munin_packages: ensure => "installed" }
 
+  $hosts_domain = zulipconf("nagios", "hosts_domain", undef)
   $hosts = $zulip_ops::base::hosts
 
   file { "/etc/munin":

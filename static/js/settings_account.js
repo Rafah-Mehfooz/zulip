@@ -11,22 +11,71 @@ exports.update_email = function (new_email) {
 };
 
 function settings_change_error(message, xhr) {
-    // Scroll to the top so the error message is visible.
-    // We would scroll anyway if we end up submitting the form.
-    message_viewport.scrollTop(0);
     ui_report.error(message, xhr, $('#account-settings-status').expectOne());
 }
 
 function settings_change_success(message) {
-    // Scroll to the top so the error message is visible.
-    // We would scroll anyway if we end up submitting the form.
-    message_viewport.scrollTop(0);
     ui_report.success(message, $('#account-settings-status').expectOne());
 }
 
 
 exports.set_up = function () {
     $("#account-settings-status").hide();
+    $("#api_key_value").text("");
+    $("#get_api_key_box").hide();
+    $("#show_api_key_box").hide();
+    $("#api_key_button_box").show();
+
+    $('#api_key_button').click(function () {
+        if (page_params.realm_password_auth_enabled !== false) {
+            $("#get_api_key_box").show();
+        } else {
+            // Skip the password prompt step
+            $("#get_api_key_box form").submit();
+        }
+        $("#api_key_button_box").hide();
+    });
+
+    $("#get_api_key_box").hide();
+    $("#show_api_key_box").hide();
+    $("#get_api_key_box form").ajaxForm({
+        dataType: 'json', // This seems to be ignored. We still get back an xhr.
+        success: function (resp, statusText, xhr) {
+            var result = JSON.parse(xhr.responseText);
+            var settings_status = $('#account-settings-status').expectOne();
+
+            $("#get_api_key_password").val("");
+            $("#api_key_value").text(result.api_key);
+            $("#show_api_key_box").show();
+            $("#get_api_key_box").hide();
+            settings_status.hide();
+        },
+        error: function (xhr) {
+            ui_report.error(i18n.t("Error getting API key"), xhr, $('#account-settings-status').expectOne());
+            $("#show_api_key_box").hide();
+            $("#get_api_key_box").show();
+        },
+    });
+
+    $("#show_api_key_box").on("click", "button.regenerate_api_key", function () {
+        channel.post({
+            url: '/json/users/me/api_key/regenerate',
+            idempotent: true,
+            success: function (data) {
+                $('#api_key_value').text(data.api_key);
+            },
+            error: function (xhr) {
+                $('#user_api_key_error').text(JSON.parse(xhr.responseText).msg).show();
+            },
+        });
+    });
+
+    $("#download_zuliprc").on("click", function () {
+        $(this).attr("href", settings_bots.generate_zuliprc_uri(
+            people.my_current_email(),
+            $("#api_key_value").text()
+        ));
+    });
 
     function clear_password_change() {
         // Clear the password boxes so that passwords don't linger in the DOM
@@ -40,7 +89,7 @@ exports.set_up = function () {
         e.preventDefault();
         $('#pw_change_link').hide();
         $('#pw_change_controls').show();
-        if (page_params.password_auth_enabled !== false) {
+        if (page_params.realm_password_auth_enabled !== false) {
             // zxcvbn.js is pretty big, and is only needed on password
             // change, so load it asynchronously.
             var zxcvbn_path = '/static/min/zxcvbn.js';
@@ -57,19 +106,19 @@ exports.set_up = function () {
 
     $('#new_password').on('change keyup', function () {
         var field = $('#new_password');
-        password_quality(field.val(), $('#pw_strength .bar'), field);
+        common.password_quality(field.val(), $('#pw_strength .bar'), field);
     });
 
     $("form.your-account-settings").ajaxForm({
         dataType: 'json', // This seems to be ignored. We still get back an xhr.
         beforeSubmit: function () {
-            if (page_params.password_auth_enabled !== false) {
+            if (page_params.realm_password_auth_enabled !== false) {
                 // FIXME: Check that the two password fields match
                 // FIXME: Use the same jQuery validation plugin as the signup form?
                 var field = $('#new_password');
                 var new_pw = $('#new_password').val();
                 if (new_pw !== '') {
-                    var password_ok = password_quality(new_pw, undefined, field);
+                    var password_ok = common.password_quality(new_pw, undefined, field);
                     if (password_ok === undefined) {
                         // zxcvbn.js didn't load, for whatever reason.
                         settings_change_error(
@@ -77,7 +126,7 @@ exports.set_up = function () {
                             'Sorry for the trouble!');
                         return false;
                     } else if (!password_ok) {
-                        settings_change_error('New password is too weak');
+                        settings_change_error(i18n.t('New password is too weak'));
                         return false;
                     }
                 }
@@ -85,10 +134,10 @@ exports.set_up = function () {
             return true;
         },
         success: function () {
-            settings_change_success("Updated settings!");
+            settings_change_success(i18n.t("Updated settings!"));
         },
         error: function (xhr) {
-            settings_change_error("Error changing settings", xhr);
+            settings_change_error(i18n.t("Error changing settings"), xhr);
         },
         complete: function () {
             // Whether successful or not, clear the password boxes.
@@ -100,23 +149,27 @@ exports.set_up = function () {
     $('#change_email_button').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#change_email_modal').modal('hide');
+        overlays.close_modal('change_email_modal');
 
         var data = {};
         data.email = $('.email_change_container').find("input[name='email']").val();
 
         channel.patch({
-            url: '/json/settings/change',
+            url: '/json/settings',
             data: data,
             success: function (data) {
                 if ('account_email' in data) {
                     settings_change_success(data.account_email);
+                    if (page_params.development_environment) {
+                        var email_msg = templates.render('dev_env_email_access');
+                        $("#account-settings-status").append(email_msg);
+                    }
                 } else {
-                    settings_change_error(i18n.t("Error changing settings: No new data supplied."));
+                    settings_change_success(i18n.t("No changes made."));
                 }
             },
             error: function (xhr) {
-                settings_change_error("Error changing settings", xhr);
+                settings_change_error(i18n.t("Error changing settings"), xhr);
             },
         });
     });
@@ -124,8 +177,8 @@ exports.set_up = function () {
     $('#change_email').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#change_email_modal').modal('show');
-        var email = $('#email_value').text();
+        overlays.open_modal('change_email_modal');
+        var email = $('#email_value').text().trim();
         $('.email_change_container').find("input[name='email']").val(email);
     });
 
@@ -160,7 +213,7 @@ exports.set_up = function () {
         var spinner = $("#upload_avatar_spinner").expectOne();
         loading.make_indicator(spinner, {text: 'Uploading avatar.'});
 
-        channel.put({
+        channel.post({
             url: '/json/users/me/avatar',
             data: form_data,
             cache: false,
@@ -177,7 +230,7 @@ exports.set_up = function () {
 
     avatar.build_user_avatar_widget(upload_avatar);
 
-    if (page_params.name_changes_disabled) {
+    if (page_params.realm_name_changes_disabled) {
         $(".name_change_container").hide();
     }
 

@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 
 from typing import Any, Dict
 
@@ -16,8 +15,7 @@ METHODS = ('GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH')
 FLAGS = ('override_api_url_scheme')
 
 @csrf_exempt
-def rest_dispatch(request, **kwargs):
-    # type: (HttpRequest, **Any) -> HttpResponse
+def rest_dispatch(request: HttpRequest, **kwargs: Any) -> HttpResponse:
     """Dispatch to a REST API endpoint.
 
     Unauthenticated endpoints should not use this, as authentication is verified
@@ -40,7 +38,7 @@ def rest_dispatch(request, **kwargs):
     Never make a urls.py pattern put user input into a variable called GET, POST,
     etc, as that is where we route HTTP verbs to target functions.
     """
-    supported_methods = {} # type: Dict[str, Any]
+    supported_methods = {}  # type: Dict[str, Any]
 
     # duplicate kwargs so we can mutate the original as we go
     for arg in list(kwargs):
@@ -49,7 +47,7 @@ def rest_dispatch(request, **kwargs):
             del kwargs[arg]
 
     if request.method == 'OPTIONS':
-        response = HttpResponse(status=204) # No content
+        response = HttpResponse(status=204)  # No content
         response['Allow'] = ', '.join(sorted(supported_methods.keys()))
         response['Content-Length'] = "0"
         return response
@@ -89,7 +87,7 @@ def rest_dispatch(request, **kwargs):
             # This request  API based authentication.
             target_function = authenticated_rest_api_view()(target_function)
         # /json views (web client) validate with a session token (cookie)
-        elif not request.path.startswith("/api") and request.user.is_authenticated():
+        elif not request.path.startswith("/api") and request.user.is_authenticated:
             # Authenticated via sessions framework, only CSRF check needed
             target_function = csrf_protect(authenticated_json_view(target_function))
 
@@ -98,7 +96,10 @@ def rest_dispatch(request, **kwargs):
         elif request.META.get('HTTP_AUTHORIZATION', None):
             # Wrap function with decorator to authenticate the user before
             # proceeding
-            target_function = authenticated_rest_api_view()(target_function)
+            view_kwargs = {}
+            if 'allow_incoming_webhooks' in view_flags:
+                view_kwargs['is_webhook'] = True
+            target_function = authenticated_rest_api_view(**view_kwargs)(target_function)
         # Pick a way to tell user they're not authed based on how the request was made
         else:
             # If this looks like a request from a top-level page in a

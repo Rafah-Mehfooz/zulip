@@ -4,6 +4,8 @@ var exports = {};
 // This module handles the outbound side of typing indicators.
 // We detect changes in the compose box and notify the server
 // when we are typing.  For the inbound side see typing_events.js.
+//
+// See docs/subsystems/typing-indicators.md for details on typing indicators.
 
 function send_typing_notification_ajax(recipients, operation) {
     channel.post({
@@ -39,7 +41,7 @@ function is_valid_conversation(recipient) {
         return false;
     }
 
-    if (compose_state.composing() !== 'private') {
+    if (compose_state.get_message_type() !== 'private') {
         // We only use typing indicators in PMs for now.
         // There was originally some support for having
         // typing indicators related to stream conversations,
@@ -79,7 +81,7 @@ var worker = {
     notify_server_stop: notify_server_stop,
 };
 
-$(document).on('input', '#new_message_content', function () {
+$(document).on('input', '#compose-textarea', function () {
     // If our previous state was no typing notification, send a
     // start-typing notice immediately.
     typing_status.handle_text_input(worker);

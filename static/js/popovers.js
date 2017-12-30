@@ -4,9 +4,6 @@ var exports = {};
 
 var current_actions_popover_elem;
 var current_message_info_popover_elem;
-var current_message_reactions_popover_elem;
-var emoji_map_is_open = false;
-
 var userlist_placement = "right";
 
 var list_of_popovers = [];
@@ -36,15 +33,43 @@ var list_of_popovers = [];
     }
 }($.fn.popover));
 
-function load_medium_avatar(user_email) {
+function load_medium_avatar(user, elt) {
+    var user_avatar_url = "avatar/" + user.user_id + "/medium";
     var sender_avatar_medium = new Image();
-    sender_avatar_medium.src= "avatar/" + user_email + "/medium";
-    $(sender_avatar_medium).load(function () {
-        $(".popover-avatar").css("background-image","url("+$(this).attr("src")+")");
+    sender_avatar_medium.src = user_avatar_url;
+    $(sender_avatar_medium).on("load", function () {
+        elt.css("background-image", "url(" + $(this).attr("src") + ")");
     });
 }
 
-function show_message_info_popover(element, id) {
+function user_last_seen_time_status(user_id) {
+    var status = presence.get_status(user_id);
+    if (status === "active") {
+        return i18n.t("Active now");
+    }
+
+    if (page_params.realm_is_zephyr_mirror_realm) {
+        // We don't send presence data to clients in Zephyr mirroring realms
+        return i18n.t("Unknown");
+    }
+
+    // There are situations where the client has incomplete presence
+    // history on a user.  This can happen when users are deactivated,
+    // or when they just haven't been present in a long time (and we
+    // may have queries on presence that go back only N weeks).
+    //
+    // We give the somewhat vague status of "Unknown" for these users.
+    var last_active_date = presence.last_active_date(user_id);
+    if (last_active_date === undefined) {
+        return i18n.t("Unknown");
+    }
+    return timerender.last_seen_status_from_date(last_active_date.clone());
+}
+
+// element is the target element to pop off of
+// user is the user whose profile to show
+// message is the message containing it, which should be selected
+function show_user_info_popover(element, user, message) {
     var last_popover_elem = current_message_info_popover_elem;
     popovers.hide_all();
     if (last_popover_elem !== undefined
@@ -53,33 +78,29 @@ function show_message_info_popover(element, id) {
         // by clicking on the same element that caused the popover.
         return;
     }
-    current_msg_list.select_id(id);
+    current_msg_list.select_id(message.id);
     var elt = $(element);
     if (elt.data('popover') === undefined) {
-        timerender.set_full_datetime(current_msg_list.get(id),
-                                     elt.closest(".message_row").find(".message_time"));
-
-        var message = current_msg_list.get(id);
-        var sender = people.get_person_from_user_id(message.sender_id);
-        var sender_email;
-
-        if (sender) {
-            sender_email = sender.email;
-        } else {
-            blueslip.debug('Bad sender in message' + message.sender_id);
-            sender_email = message.sender_email;
+        if (user === undefined) {
+            // This is never supposed to happen, not even for deactivated
+            // users, so we'll need to debug this error if it occurs.
+            blueslip.error('Bad sender in message' + message.sender_id);
+            return;
         }
 
         var args = {
-            user_full_name: message.sender_full_name,
-            user_email: sender_email,
-            user_id: message.sender_id,
-            user_time: people.get_user_time(message.sender_id),
-            pm_with_uri: narrow.pm_with_uri(sender_email),
-            sent_by_uri: narrow.by_sender_uri(sender_email),
-            narrowed: narrow.active(),
-            historical: message.historical,
+            user_full_name: user.full_name,
+            user_email: user.email,
+            user_id: user.user_id,
+            user_time: people.get_user_time(user.user_id),
+            presence_status: presence.get_status(user.user_id),
+            user_last_seen_time_status: user_last_seen_time_status(user.user_id),
+            pm_with_uri: narrow.pm_with_uri(user.email),
+            sent_by_uri: narrow.by_sender_uri(user.email),
+            narrowed: narrow_state.active(),
             private_message_class: "respond_personal_button",
+            is_active: people.is_active_user_for_popover(user.user_id),
+            is_bot: people.get_person_from_user_id(user.user_id).is_bot,
         };
 
         var ypos = elt.offset().top;
@@ -97,132 +118,23 @@ function show_message_info_popover(element, id) {
 
         elt.popover({
             placement: placement,
-            template:  templates.render('user_info_popover',   {class: "message-info-popover"}),
-            title:     templates.render('user_info_popover_title', {user_avatar: "avatar/" + sender_email}),
-            content:   templates.render('user_info_popover_content', args),
-            trigger:   "manual",
+            template: templates.render('user_info_popover', {class: "message-info-popover"}),
+            title: templates.render('user_info_popover_title',
+                                    {user_avatar: "avatar/" + user.email}),
+            content: templates.render('user_info_popover_content', args),
+            trigger: "manual",
         });
         elt.popover("show");
 
-        load_medium_avatar(sender_email);
+        load_medium_avatar(user, $(".popover-avatar"));
 
         current_message_info_popover_elem = elt;
     }
 }
 
-function promote_popular(a, b) {
-    function rank(name) {
-        switch (name) {
-            case '+1': return 1;
-            case 'tada': return 2;
-            case 'simple_smile': return 3;
-            case 'laughing': return 4;
-            case '100': return 5;
-            default: return 999;
-        }
-    }
-
-    var diff = rank(a.name) - rank(b.name);
-
-    if (diff !== 0) {
-        return diff;
-    }
-
-    return util.strcmp(a.name, b.name);
-}
-
-exports.toggle_reactions_popover = function (element, id) {
-    var last_popover_elem = current_message_reactions_popover_elem;
-    popovers.hide_all();
-    $(element).closest('.message_row').toggleClass('has_popover has_reactions_popover');
-    if (last_popover_elem !== undefined
-        && last_popover_elem.get()[0] === element) {
-        // We want it to be the case that a user can dismiss a popover
-        // by clicking on the same element that caused the popover.
-        return;
-    }
-
-    current_msg_list.select_id(id);
-    var elt = $(element);
-    if (elt.data('popover') === undefined) {
-        var emojis = _.clone(emoji.emojis_name_to_css_class);
-        var emojis_used = reactions.get_emojis_used_by_user_for_message_id(id);
-        var realm_emojis = emoji.realm_emojis;
-        _.each(realm_emojis, function (realm_emoji, realm_emoji_name) {
-            emojis[realm_emoji_name] = {
-                name: realm_emoji_name,
-                is_realm_emoji: true,
-                url: realm_emoji.emoji_url,
-            };
-        });
-        _.each(emojis_used, function (emoji_name) {
-            var is_realm_emoji = emojis[emoji_name].is_realm_emoji;
-            var url = emojis[emoji_name].url;
-            emojis[emoji_name] = {
-                name: emoji_name,
-                has_reacted: true,
-                css_class: emoji.emoji_name_to_css_class(emoji_name),
-                is_realm_emoji: is_realm_emoji,
-                url: url,
-            };
-        });
-
-        var emoji_recs = _.map(emojis, function (val, emoji_name) {
-            if (val.name) {
-                return val;
-            }
-
-            return {
-                name: emoji_name,
-                css_class: emoji.emoji_name_to_css_class(emoji_name),
-                has_reacted: false,
-                is_realm_emoji: false,
-            };
-        });
-
-        emoji_recs.sort(promote_popular);
-
-        var args = {
-            message_id: id,
-            emojis: emoji_recs,
-        };
-
-        var approx_popover_height = 400;
-        var approx_popover_width = 400;
-        var distance_from_bottom = message_viewport.height() - elt.offset().top;
-        var distance_from_right = message_viewport.width() - elt.offset().left;
-        var will_extend_beyond_bottom_of_viewport = distance_from_bottom < approx_popover_height;
-        var will_extend_beyond_top_of_viewport = elt.offset().top < approx_popover_height;
-        var will_extend_beyond_left_of_viewport = elt.offset().left < (approx_popover_width / 2);
-        var will_extend_beyond_right_of_viewport = distance_from_right < (approx_popover_width / 2);
-        var placement = 'bottom';
-        if (will_extend_beyond_bottom_of_viewport && !will_extend_beyond_top_of_viewport) {
-            placement = 'top';
-        }
-        if (will_extend_beyond_right_of_viewport && !will_extend_beyond_left_of_viewport) {
-            placement = 'left';
-        }
-        if (will_extend_beyond_left_of_viewport && !will_extend_beyond_right_of_viewport) {
-            placement = 'right';
-        }
-        elt.prop('title', '');
-        elt.popover({
-            placement: placement,
-            title:     "",
-            content:   templates.render('reaction_popover_content', args),
-            trigger:   "manual",
-        });
-        elt.popover("show");
-        elt.prop('title', 'Add reaction...');
-        $('.reaction-popover-filter').focus();
-        current_message_reactions_popover_elem = elt;
-    }
-};
-
 exports.toggle_actions_popover = function (element, id) {
     var last_popover_elem = current_actions_popover_elem;
     popovers.hide_all();
-    $(element).closest('.message_row').toggleClass('has_popover has_actions_popover');
     if (last_popover_elem !== undefined
         && last_popover_elem.get()[0] === element) {
         // We want it to be the case that a user can dismiss a popover
@@ -230,6 +142,7 @@ exports.toggle_actions_popover = function (element, id) {
         return;
     }
 
+    $(element).closest('.message_row').toggleClass('has_popover has_actions_popover');
     current_msg_list.select_id(id);
     var elt = $(element);
     if (elt.data('popover') === undefined) {
@@ -258,7 +171,12 @@ exports.toggle_actions_popover = function (element, id) {
 
         var should_display_edit_history_option = _.any(message.edit_history, function (entry) {
             return entry.prev_content !== undefined;
-        });
+        }) && page_params.realm_allow_edit_history;
+        var should_display_delete_option = page_params.is_admin ||
+            (message.sent_by_me && page_params.realm_allow_message_deleting);
+
+        var should_display_collapse = !message.locally_echoed && !message.collapsed;
+        var should_display_uncollapse = !message.locally_echoed && message.collapsed;
 
         var args = {
             message: message,
@@ -266,10 +184,13 @@ exports.toggle_actions_popover = function (element, id) {
             editability_menu_item: editability_menu_item,
             can_mute_topic: can_mute_topic,
             can_unmute_topic: can_unmute_topic,
+            should_display_collapse: should_display_collapse,
+            should_display_uncollapse: should_display_uncollapse,
             should_display_add_reaction_option: message.sent_by_me,
             should_display_edit_history_option: should_display_edit_history_option,
-            conversation_time_uri: narrow.by_conversation_and_time_uri(message),
-            narrowed: narrow.active(),
+            conversation_time_uri: narrow.by_conversation_and_time_uri(message, true),
+            narrowed: narrow_state.active(),
+            should_display_delete_option: should_display_delete_option,
         };
 
         var ypos = elt.offset().top;
@@ -286,18 +207,40 @@ exports.toggle_actions_popover = function (element, id) {
 };
 
 function get_action_menu_menu_items() {
-    return $('li:not(.divider):visible a', current_actions_popover_elem.data('popover').$tip);
+    if (!current_actions_popover_elem) {
+        blueslip.error('Trying to get menu items when action popover is closed.');
+        return;
+    }
+
+    var popover_data = current_actions_popover_elem.data('popover');
+    if (!popover_data) {
+        blueslip.error('Cannot find popover data for actions menu.');
+        return;
+    }
+
+    return $('li:not(.divider):visible a', popover_data.$tip);
 }
 
 function focus_first_action_popover_item() {
     // For now I recommend only calling this when the user opens the menu with a hotkey.
     // Our popup menus act kind of funny when you mix keyboard and mouse.
     var items = get_action_menu_menu_items();
+    if (!items) {
+        return;
+    }
+
     items.eq(0).expectOne().focus();
 }
 
-exports.open_message_menu = function () {
-    var id = current_msg_list.selected_id();
+exports.open_message_menu = function (message) {
+    if (message.locally_echoed) {
+        // Don't open the popup for locally echoed messages for now.
+        // It creates bugs with things like keyboard handlers when
+        // we get the server response.
+        return true;
+    }
+
+    var id = message.id;
     popovers.toggle_actions_popover($(".selected_message .actions_hover")[0], id);
     if (current_actions_popover_elem) {
         focus_first_action_popover_item();
@@ -307,10 +250,14 @@ exports.open_message_menu = function () {
 
 exports.actions_menu_handle_keyboard = function (key) {
     var items = get_action_menu_menu_items();
+    if (!items) {
+        return;
+    }
+
     var index = items.index(items.filter(':focus'));
 
     if (key === "enter" && index >= 0 && index < items.length) {
-        return items.eq(index).trigger('click');
+        return items[index].click();
     }
     if (index === -1) {
         index = 0;
@@ -328,6 +275,7 @@ exports.actions_popped = function () {
 
 exports.hide_actions_popover = function () {
     if (popovers.actions_popped()) {
+        $('.has_popover').removeClass('has_popover has_actions_popover');
         current_actions_popover_elem.popover("destroy");
         current_actions_popover_elem = undefined;
     }
@@ -337,22 +285,10 @@ function message_info_popped() {
     return current_message_info_popover_elem !== undefined;
 }
 
-exports.reactions_popped = function () {
-    return current_message_reactions_popover_elem !== undefined;
-};
-
 exports.hide_message_info_popover = function () {
     if (message_info_popped()) {
         current_message_info_popover_elem.popover("destroy");
         current_message_info_popover_elem = undefined;
-    }
-};
-
-exports.hide_reactions_popover = function () {
-    $('.has_popover').removeClass('has_popover has_reactions_popover');
-    if (exports.reactions_popped()) {
-        current_message_reactions_popover_elem.popover("destroy");
-        current_message_reactions_popover_elem = undefined;
     }
 };
 
@@ -381,14 +317,6 @@ function user_sidebar_popped() {
     return current_user_sidebar_popover !== undefined;
 }
 
-exports.hide_emoji_map_popover = function () {
-    if (emoji_map_is_open) {
-        $('.emoji_popover').css('display', 'none');
-        $('.drag').css('display', 'none');
-        emoji_map_is_open = false;
-    }
-};
-
 exports.hide_user_sidebar_popover = function () {
     if (user_sidebar_popped()) {
         // this hide_* method looks different from all the others since
@@ -403,34 +331,21 @@ exports.hide_user_sidebar_popover = function () {
     }
 };
 
-function render_emoji_popover() {
-    var content = (function () {
-        var map = {};
-        for (var x in emoji.emojis_name_to_css_class) {
-            if (!emoji.realm_emojis[x]) {
-                map[x] = {
-                    name: x,
-                    css_name: emoji.emojis_name_to_css_class[x],
-                    url: emoji.emojis_by_name[x],
-                };
-            }
+exports.show_sender_info = function () {
+    var $message = $(".selected_message");
+    var $sender = $message.find(".sender_info_hover");
+    var $prev_message = $message.prev();
+    while (!$sender[0]) {
+        $prev_message = $prev_message.prev();
+        if (!$prev_message) {
+            break;
         }
-
-        return templates.render('emoji_popover_content', {
-            emoji_list: map,
-            realm_emoji: emoji.realm_emojis,
-        });
-    }());
-    $('.emoji_popover').empty();
-    $('.emoji_popover').append(content);
-
-    $('.drag').show();
-    $('.emoji_popover').css('display', 'inline-block');
-
-    $("#new_message_content").focus();
-
-    emoji_map_is_open = true;
-}
+        $sender = $prev_message.find(".sender_info_hover");
+    }
+    var message = current_msg_list.get(rows.id($message));
+    var user = people.get_person_from_user_id(message.sender_id);
+    show_user_info_popover($sender[0], user, message);
+};
 
 exports.register_click_handlers = function () {
     $("#main_div").on("click", ".actions_hover", function (e) {
@@ -439,91 +354,21 @@ exports.register_click_handlers = function () {
         popovers.toggle_actions_popover(this, rows.id(row));
     });
 
-    $("#main_div").on("click", ".reactions_hover, .reaction_button", function (e) {
-        var row = $(this).closest(".message_row");
-        e.stopPropagation();
-        popovers.toggle_reactions_popover(this, rows.id(row));
-    });
-
-
-    $("body").on("click", ".actions_popover .reaction_button", function (e) {
-        var msgid = $(e.currentTarget).data('message-id');
-        e.preventDefault();
-        e.stopPropagation();
-        // HACK: Because we need the popover to be based off an
-        // element that definitely exists in the page even if the
-        // message wasn't sent by us and thus the .reaction_hover
-        // element is not present, we use the message's
-        // .icon-vector-chevron-down element as the base for the popover.
-        popovers.toggle_reactions_popover($(".selected_message .icon-vector-chevron-down")[0], msgid);
-    });
-
     $("#main_div").on("click", ".sender_info_hover", function (e) {
         var row = $(this).closest(".message_row");
         e.stopPropagation();
-        show_message_info_popover(this, rows.id(row));
+        var message = current_msg_list.get(rows.id(row));
+        var user = people.get_person_from_user_id(message.sender_id);
+        show_user_info_popover(this, user, message);
     });
 
-    (function () {
-        // create locally scoped variables for drag tracking.
-        var meta = {
-          drag: false,
-          c: {
-            y: null,
-          },
-          $popover: $(".emoji_popover"),
-          MIN_HEIGHT: 25,
-          MAX_HEIGHT: 300,
-        };
-
-        // drag must start within the .drag zone.
-        $(".drag").on("mousedown", function (e) {
-            meta.drag = true;
-            meta.c.y = e.screenY;
-        });
-
-        // mouse move that originated in .drag zone can go anywhere.
-        $("body").on("mousemove", function (e) {
-            if (meta.drag) {
-                var diff = e.screenY - meta.c.y;
-                var resolved_height = meta.$popover.height() - diff;
-
-                if (resolved_height > meta.MIN_HEIGHT && resolved_height < meta.MAX_HEIGHT) {
-                  meta.$popover.height(resolved_height);
-                }
-                meta.c.y = e.screenY;
-            }
-        });
-
-        // drag ends on mouseup. This cancels all drag events without interfering
-        // with any other events.
-        $("body").on("mouseup", function () {
-            meta.drag = false;
-        });
-    }());
-
-    $("body").on("click", ".emoji_popover", function (e) {
+    $("#main_div").on("click", ".user-mention", function (e) {
+        var row = $(this).closest(".message_row");
         e.stopPropagation();
-    });
-
-    $(".emoji_popover").on("click", ".emoji", function (e) {
-        var emoji_choice = $(e.target).attr("title");
-        var textarea = $("#new_message_content");
-        textarea.caret(emoji_choice);
-        textarea.focus();
-        e.stopPropagation();
-    });
-
-    $("#compose").on("click", "#emoji_map", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (emoji_map_is_open) {
-            // If the popover is already shown, clicking again should toggle it.
-            popovers.hide_emoji_map_popover();
-            return;
-        }
-        popovers.hide_all();
-        render_emoji_popover();
+        var message = current_msg_list.get(rows.id(row));
+        var id = $(this).attr('data-user-id');
+        var user = people.get_person_from_user_id(id);
+        show_user_info_popover(this, user, message);
     });
 
     $('body').on('click', '.user_popover .narrow_to_private_messages', function (e) {
@@ -558,7 +403,7 @@ exports.register_click_handlers = function () {
         var user_id = $(e.target).parents('ul').attr('data-user-id');
         compose_actions.start('stream', {trigger: 'sidebar user actions'});
         var name = people.get_person_from_user_id(user_id).full_name;
-        var textarea = $("#new_message_content");
+        var textarea = $("#compose-textarea");
         textarea.val('@**' + name + '** ');
         popovers.hide_user_sidebar_popover();
         e.stopPropagation();
@@ -587,7 +432,7 @@ exports.register_click_handlers = function () {
         compose_actions.respond_to_message({trigger: 'user sidebar popover'});
         var user_id = $(e.target).parents('ul').attr('data-user-id');
         var name = people.get_person_from_user_id(user_id).full_name;
-        var textarea = $("#new_message_content");
+        var textarea = $("#compose-textarea");
         textarea.val('@**' + name + '** ');
         popovers.hide_message_info_popover();
         e.stopPropagation();
@@ -601,7 +446,6 @@ exports.register_click_handlers = function () {
         // as the presence list may be redrawn with new elements.
         var target = $(this).closest('li');
         var user_id = target.find('a').attr('data-user-id');
-        var name = target.find('a').attr('data-name');
 
         if (current_user_sidebar_user_id === user_id) {
             // If the popover is already shown, clicking again should toggle it.
@@ -614,37 +458,51 @@ exports.register_click_handlers = function () {
             popovers.show_userlist_sidebar();
         }
 
-        var user_email = people.get_person_from_user_id(user_id).email;
+        var user = people.get_person_from_user_id(user_id);
+        var user_email = user.email;
 
         var args = {
             user_email: user_email,
-            user_full_name: name,
+            user_full_name: user.full_name,
             user_id: user_id,
             user_time: people.get_user_time(user_id),
+            presence_status: presence.get_status(user_id),
+            user_last_seen_time_status: user_last_seen_time_status(user_id),
             pm_with_uri: narrow.pm_with_uri(user_email),
             sent_by_uri: narrow.by_sender_uri(user_email),
             private_message_class: "compose_private_message",
+            is_active: people.is_active_user_for_popover(user_id),
+            is_bot: user.is_bot,
         };
 
         target.popover({
-            template:  templates.render('user_info_popover',   {class: "user_popover"}),
-            title:     templates.render('user_info_popover_title', {user_avatar: "avatar/" + user_email}),
-            content:   templates.render('user_info_popover_content', args),
-            trigger:   "manual",
+            template: templates.render('user_info_popover', {class: "user_popover"}),
+            title: templates.render('user_info_popover_title', {user_avatar: "avatar/" + user_email}),
+            content: templates.render('user_info_popover_content', args),
+            trigger: "manual",
             fixed: true,
             placement: userlist_placement === "left" ? "right" : "left",
         });
         target.popover("show");
 
-        load_medium_avatar(user_email);
+        load_medium_avatar(user, $(".popover-avatar"));
 
         current_user_sidebar_user_id = user_id;
         current_user_sidebar_popover = target.data('popover');
+    });
 
+    $('body').on("mouseenter", ".my_email", function () {
+        var tooltip_holder = $(this).find('div');
+
+        if (this.offsetWidth < this.scrollWidth) {
+            tooltip_holder.addClass('display-tooltip');
+        } else {
+            tooltip_holder.removeClass('display-tooltip');
+        }
     });
 
     $('body').on('click', '.respond_button', function (e) {
-        var textarea = $("#new_message_content");
+        var textarea = $("#compose-textarea");
         var msgid = $(e.currentTarget).data("message-id");
 
         compose_actions.respond_to_message({trigger: 'popover respond'});
@@ -657,7 +515,7 @@ exports.register_click_handlers = function () {
                 } else {
                     textarea.val(textarea.val() + "\n```quote\n" + data.raw_content +"\n```\n");
                 }
-                $("#new_message_content").trigger("autosize.resize");
+                $("#compose-textarea").trigger("autosize.resize");
             },
         });
         popovers.hide_actions_popover();
@@ -665,22 +523,12 @@ exports.register_click_handlers = function () {
         e.preventDefault();
     });
     $('body').on('click', '.respond_personal_button', function (e) {
-        compose_actions.respond_to_message({reply_type: 'personal', trigger: 'popover respond pm'});
+        var user_id = $(e.target).parents('ul').attr('data-user-id');
+        var email = people.get_person_from_user_id(user_id).email;
+        compose_actions.start('private', {
+            trigger: 'popover send private',
+            private_message_recipient: email});
         popovers.hide_all();
-        e.stopPropagation();
-        e.preventDefault();
-    });
-    $('body').on('click', '.popover_narrow_by_id', function (e) {
-        var msgid = $(e.currentTarget).data('msgid');
-        popovers.hide_actions_popover();
-        narrow.by_id(msgid, {trigger: 'popover'});
-        e.stopPropagation();
-        e.preventDefault();
-    });
-    $('body').on('click', '.popover_narrow_by_conversation_and_time', function (e) {
-        var msgid = $(e.currentTarget).data('message-id');
-        popovers.hide_actions_popover();
-        narrow.by_conversation_and_time(msgid, {trigger: 'popover'});
         e.stopPropagation();
         e.preventDefault();
     });
@@ -736,8 +584,35 @@ exports.register_click_handlers = function () {
         var stream = $(e.currentTarget).data('msg-stream');
         var topic = $(e.currentTarget).data('msg-topic');
         popovers.hide_actions_popover();
-        muting_ui.unmute_topic(stream, topic);
-        muting_ui.persist_and_rerender();
+        muting_ui.unmute(stream, topic);
+        e.stopPropagation();
+        e.preventDefault();
+    });
+
+    $('body').on('click', '.delete_message', function (e) {
+        var msgid = $(e.currentTarget).data('message-id');
+        popovers.hide_actions_popover();
+        message_edit.delete_message(msgid);
+        e.stopPropagation();
+        e.preventDefault();
+    });
+
+    new Clipboard('.copy_link');
+
+    $('body').on('click', '.copy_link', function (e) {
+        popovers.hide_actions_popover();
+        var id = $(this).attr("data-message-id");
+        var row = $("[zid='" + id + "']");
+        row.find(".alert-copied")
+            .css("display", "block")
+            .delay(1000).fadeOut(300);
+
+        setTimeout(function () {
+            // The Cliboard library works by focusing to a hidden textarea.
+            // We unfocus this so keyboard shortcuts, etc., will work again.
+            $(":focus").blur();
+        }, 0);
+
         e.stopPropagation();
         e.preventDefault();
     });
@@ -764,23 +639,23 @@ exports.register_click_handlers = function () {
 
 exports.any_active = function () {
     // True if any popover (that this module manages) is currently shown.
+    // Expanded sidebars on mobile view count as popovers as well.
     return popovers.actions_popped() || user_sidebar_popped() ||
         stream_popover.stream_popped() || stream_popover.topic_popped() ||
-        message_info_popped() || emoji_map_is_open ||
-        popovers.reactions_popped();
+        message_info_popped() || emoji_picker.reactions_popped() ||
+        $("[class^='column-'].expanded").length;
 };
 
 exports.hide_all = function () {
-    $('.has_popover').removeClass('has_popover has_actions_popover has_reactions_popover');
+    $('.has_popover').removeClass('has_popover has_actions_popover has_emoji_popover');
     popovers.hide_actions_popover();
     popovers.hide_message_info_popover();
-    popovers.hide_reactions_popover();
+    emoji_picker.hide_emoji_popover();
     stream_popover.hide_stream_popover();
     stream_popover.hide_topic_popover();
     popovers.hide_user_sidebar_popover();
     popovers.hide_userlist_sidebar();
     stream_popover.restore_stream_list_size();
-    popovers.hide_emoji_map_popover();
 
     // look through all the popovers that have been added and removed.
     list_of_popovers.forEach(function ($o) {
@@ -792,6 +667,49 @@ exports.hide_all = function () {
 
 exports.set_userlist_placement = function (placement) {
     userlist_placement = placement || "right";
+};
+
+exports.compute_placement = function (elt, popover_height, popover_width,
+                                      prefer_vertical_positioning) {
+    var client_rect = elt.get(0).getBoundingClientRect();
+    var distance_from_top = client_rect.top;
+    var distance_from_bottom = message_viewport.height() - client_rect.bottom;
+    var distance_from_left = client_rect.left;
+    var distance_from_right = message_viewport.width() - client_rect.right;
+
+    var elt_will_fit_horizontally =
+        distance_from_left + elt.width() / 2 > popover_width / 2 &&
+        distance_from_right + elt.width() / 2 > popover_width / 2;
+
+    var elt_will_fit_vertically =
+        distance_from_bottom + elt.height() / 2 > popover_height / 2 &&
+        distance_from_top + elt.height() / 2 > popover_height / 2;
+
+    // default to placing the popover in the center of the screen
+    var placement = 'viewport_center';
+
+    // prioritize left/right over top/bottom
+    if (distance_from_top > popover_height && elt_will_fit_horizontally) {
+        placement = 'top';
+    }
+    if (distance_from_bottom > popover_height && elt_will_fit_horizontally) {
+        placement = 'bottom';
+    }
+
+    if (prefer_vertical_positioning && placement !== 'viewport_center') {
+        // If vertical positioning is preferred and the popover fits in
+        // either top or bottom position then return.
+        return placement;
+    }
+
+    if (distance_from_left > popover_width && elt_will_fit_vertically) {
+        placement = 'left';
+    }
+    if (distance_from_right > popover_width && elt_will_fit_vertically) {
+        placement = 'right';
+    }
+
+    return placement;
 };
 
 return exports;

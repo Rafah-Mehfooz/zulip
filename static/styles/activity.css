@@ -1,5 +1,5 @@
 .activity_head {
-    background-color: aliceblue;
+    background-color: hsl(208, 100%, 97%);
 }
 
 .table td {
@@ -9,19 +9,19 @@
 }
 
 .table-striped tr.recently_active td {
-    background-color: #afa;
+    background-color: hsl(120, 97%, 83%);
 }
 
 .table-striped tr.recently_active:nth-child(odd) td {
-    background-color: #9e9;
+    background-color: hsl(120, 70%, 76%);
 }
 
 .table-striped tr.long_inactive td {
-    background-color: #faa;
+    background-color: hsl(0, 97%, 83%);
 }
 
 .table-striped tr.long_inactive:nth-child(odd) td {
-    background-color: #e99;
+    background-color: hsl(0, 70%, 76%);
 }
 
 td.number {
@@ -35,16 +35,16 @@ td.number {
 
 tr.admin td:first-child {
     font-weight: bold;
-    color: blue;
+    color: hsl(240, 100%, 50%);
     font-size: 110%;
 }
 
 .good {
     font-weight: bold;
-    color: #0a0;
+    color: hsl(120, 100%, 33%);
 }
 
 .bad {
     font-weight: bold;
-    color: #c00;
+    color: hsl(0, 100%, 39%);
 }

@@ -3,11 +3,9 @@ set_global('page_params', {});
 
 global.stub_out_jquery();
 
-add_dependencies({
-    XDate: 'node_modules/xdate/src/xdate.js',
-});
+zrequire('XDate', 'node_modules/xdate/src/xdate');
+zrequire('message_edit');
 
-var message_edit = require('js/message_edit.js');
 var get_editability = message_edit.get_editability;
 var editability_types = message_edit.editability_types;
 
@@ -19,13 +17,12 @@ var editability_types = message_edit.editability_types;
         sent_by_me: false,
     }), editability_types.NO);
 
-    // If the server returns the message with an error (e.g. due to
-    // malformed markdown), you can edit the message regardless of the realm
-    // message editing policy, since the message hasn't actually been sent yet
+    // Failed request are currently not editable (though we want to
+    // change this back).
     assert.equal(get_editability({
         sent_by_me: true,
         failed_request: true,
-    }), editability_types.FULL);
+    }), editability_types.NO);
 
     // Locally echoed messages are not editable, since the message hasn't
     // finished being sent yet.

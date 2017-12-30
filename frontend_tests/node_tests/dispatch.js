@@ -1,28 +1,14 @@
-var assert = require('assert');
-var _ = global._;
-
 var noop = function () {};
 
-// The next section of cruft will go away when we can pull out
-// dispatcher from server_events.
-(function work_around_server_events_loading_issues() {
-    add_dependencies({
-        util: 'js/util.js',
-    });
-    set_global('document', {});
-    set_global('window', {
-        addEventListener: noop,
-    });
-    global.stub_out_jquery();
-}());
+set_global('document', 'document-stub');
+set_global('$', function () {
+    return {
+        trigger: noop,
+    };
+});
 
 // These dependencies are closer to the dispatcher, and they
 // apply to all tests.
-set_global('tutorial', {
-    is_running: function () {
-        return false;
-    },
-});
 set_global('home_msg_list', {
     rerender: noop,
     select_id: noop,
@@ -32,7 +18,27 @@ set_global('echo', {
     process_from_server: function (messages) {
         return messages;
     },
+});
+
+set_global('markdown', {
     set_realm_filters: noop,
+});
+
+set_global('notifications', {
+    redraw_title: noop,
+});
+
+set_global('settings_emoji', {
+    update_custom_emoji_ui: noop,
+});
+
+set_global('settings_org', {
+    reset_realm_default_language: noop,
+    toggle_allow_message_editing_pencil: noop,
+    toggle_email_change_display: noop,
+    toggle_name_change_display: noop,
+    update_message_retention_days: noop,
+    update_realm_description: noop,
 });
 
 // page_params is highly coupled to dispatching now
@@ -41,10 +47,7 @@ var page_params = global.page_params;
 
 // alert_words is coupled to dispatching in the sense
 // that we write directly to alert_words.words
-add_dependencies({alert_words: 'js/alert_words.js'});
-
-// we also directly write to pointer
-set_global('pointer', {});
+zrequire('alert_words');
 
 // We access various msg_list object to rerender them
 set_global('current_msg_list', {rerender: noop});
@@ -62,27 +65,11 @@ set_global('blueslip', {
     },
 });
 
-var server_events = require('js/server_events.js');
+zrequire('server_events_dispatch');
+var sed = server_events_dispatch;
 
-// This also goes away if we can isolate the dispatcher.  We
-// have to call it after doing the require on server_events.js,
-// so that it can set a private variable for us that bypasses
-// code that queue up events and early-exits.
-server_events.home_view_loaded();
-
-// This jQuery shim can go away when we remove $.each from
-// server_events.js.  (It's a simple change that just
-// requires some manual testing.)
-$.each = function (data, f) {
-    _.each(data, function (value, key) {
-        f(key, value);
-    });
-};
-
-// Set up our dispatch function to point to _get_events_success
-// now.
 function dispatch(ev) {
-    server_events._get_events_success([ev]);
+    sed.dispatch_normal_event(ev);
 }
 
 
@@ -117,22 +104,14 @@ var event_fixtures = {
         ],
     },
 
-    message: {
-        type: 'message',
-        message: {
-            content: 'hello',
-        },
-        flags: [],
+    hotspots: {
+        type: 'hotspots',
+        hotspots: ['nice', 'chicken'],
     },
 
     muted_topics: {
         type: 'muted_topics',
         muted_topics: [['devel', 'js'], ['lunch', 'burritos']],
-    },
-
-    pointer: {
-        type: 'pointer',
-        pointer: 999,
     },
 
     presence: {
@@ -144,6 +123,26 @@ var event_fixtures = {
             // etc.
         },
         server_timestamp: 999999,
+    },
+
+    reaction__add: {
+        type: 'reaction',
+        op: 'add',
+        message_id: 128,
+        emoji_name: 'anguished_pig',
+        user: {
+            id: "1",
+        },
+    },
+
+    reaction__remove: {
+        type: 'reaction',
+        op: 'remove',
+        message_id: 256,
+        emoji_name: 'angery',
+        user: {
+            id: "1",
+        },
     },
 
     // Please keep this next section un-nested, as we want this to partly
@@ -238,6 +237,30 @@ var event_fixtures = {
         ],
     },
 
+    realm_domains__add: {
+        type: 'realm_domains',
+        op: 'add',
+        realm_domain: {
+            domain: 'ramen',
+            allow_subdomains: false,
+        },
+    },
+
+    realm_domains__change: {
+        type: 'realm_domains',
+        op: 'change',
+        realm_domain: {
+            domain: 'ramen',
+            allow_subdomains: true,
+        },
+    },
+
+    realm_domains__remove: {
+        type: 'realm_domains',
+        op: 'remove',
+        domain: 'ramen',
+    },
+
     realm_user__add: {
         type: 'realm_user',
         op: 'add',
@@ -265,14 +288,6 @@ var event_fixtures = {
             email: 'alice@example.com',
             full_name: 'Alice NewName',
             // etc.
-        },
-    },
-
-    referral: {
-        type: 'referral',
-        referrals: {
-            granted: 10,
-            used: 5,
         },
     },
 
@@ -347,6 +362,22 @@ var event_fixtures = {
         value: 'black',
     },
 
+    typing__start: {
+        type: 'typing',
+        sender: {
+            user_id: 4,
+        },
+        op: 'start',
+    },
+
+    typing__stop: {
+        type: 'typing',
+        sender: {
+            user_id: 6,
+        },
+        op: 'stop',
+    },
+
     update_display_settings__default_language: {
         type: 'update_display_settings',
         setting_name: 'default_language',
@@ -371,6 +402,12 @@ var event_fixtures = {
         setting: true,
     },
 
+    update_display_settings__high_contrast_mode: {
+        type: 'update_display_settings',
+        setting_name: 'high_contrast_mode',
+        setting: true,
+    },
+
     update_global_notifications: {
         type: 'update_global_notifications',
         notification_name: 'enable_stream_sounds',
@@ -390,6 +427,11 @@ var event_fixtures = {
         flag: 'starred',
         messages: [99],
     },
+
+    delete_message: {
+        type: 'delete_message',
+        message_id: 1337,
+    },
 };
 
 function assert_same(actual, expected) {
@@ -401,8 +443,9 @@ function assert_same(actual, expected) {
 
 var with_overrides = global.with_overrides; // make lint happy
 
-with_overrides(function () {
+with_overrides(function (override) {
     // alert_words
+    override('alert_words_ui.render_alert_words_ui', noop);
     var event = event_fixtures.alert_words;
     dispatch(event);
     assert_same(global.alert_words.words, ['fire', 'lunch']);
@@ -413,21 +456,21 @@ with_overrides(function (override) {
     // default_streams
     var event = event_fixtures.default_streams;
     override('settings_streams.update_default_streams_table', noop);
-    dispatch(event);
-    assert_same(page_params.realm_default_streams, event.default_streams);
+    global.with_stub(function (stub) {
+        override('stream_data.set_realm_default_streams', stub.f);
+        dispatch(event);
+        var args = stub.get_args('realm_default_streams');
+        assert_same(args.realm_default_streams, event.default_streams);
+    });
 
 });
 
 with_overrides(function (override) {
-    // message
-    var event = event_fixtures.message;
-
-    global.with_stub(function (stub) {
-        override('message_events.insert_new_messages', stub.f);
-        dispatch(event);
-        var args = stub.get_args('messages');
-        assert_same(args.messages[0].content, event.message.content);
-    });
+    // hotspots
+    var event = event_fixtures.hotspots;
+    override('hotspots.load_new', noop);
+    dispatch(event);
+    assert_same(page_params.hotspots, event.hotspots);
 });
 
 with_overrides(function (override) {
@@ -442,17 +485,6 @@ with_overrides(function (override) {
     });
 });
 
-with_overrides(function () {
-    // pointer
-    var event = event_fixtures.pointer;
-    global.pointer.furthest_read = 0;
-    global.pointer.server_furthest_read = 0;
-    dispatch(event);
-    assert_same(global.pointer.furthest_read, event.pointer);
-    assert_same(global.pointer.server_furthest_read, event.pointer);
-
-});
-
 with_overrides(function (override) {
     // presence
     var event = event_fixtures.presence;
@@ -464,6 +496,27 @@ with_overrides(function (override) {
         assert_same(args.email, 'alice@example.com');
         assert_same(args.presence, event.presence);
         assert_same(args.server_time, event.server_timestamp);
+    });
+});
+
+with_overrides(function (override) {
+    // reaction
+    var event = event_fixtures.reaction__add;
+    global.with_stub(function (stub) {
+        override('reactions.add_reaction', stub.f);
+        dispatch(event);
+        var args = stub.get_args('event');
+        assert_same(args.event.emoji_name, event.emoji_name);
+        assert_same(args.event.message_id, event.message_id);
+    });
+
+    event = event_fixtures.reaction__remove;
+    global.with_stub(function (stub) {
+        override('reactions.remove_reaction', stub.f);
+        dispatch(event);
+        var args = stub.get_args('event');
+        assert_same(args.event.emoji_name, event.emoji_name);
+        assert_same(args.event.message_id, event.message_id);
     });
 });
 
@@ -518,7 +571,7 @@ with_overrides(function (override) {
             var args = bot_stub.get_args('bot');
             assert_same(args.bot, event.bot);
 
-            args = admin_stub.get_args('update_user_id', 'update_bot_data');
+            admin_stub.get_args('update_user_id', 'update_bot_data');
         });
     });
 
@@ -531,7 +584,7 @@ with_overrides(function (override) {
             var args = bot_stub.get_args('email');
             assert_same(args.email, event.bot.email);
 
-            args = admin_stub.get_args('update_user_id', 'update_bot_data');
+            admin_stub.get_args('update_user_id', 'update_bot_data');
         });
     });
 
@@ -561,6 +614,7 @@ with_overrides(function (override) {
     global.with_stub(function (stub) {
         override('emoji.update_emojis', stub.f);
         override('settings_emoji.populate_emoji', noop);
+        override('emoji_picker.generate_emoji_picker_data', noop);
         dispatch(event);
         var args = stub.get_args('realm_emoji');
         assert_same(args.realm_emoji, event.realm_emoji);
@@ -575,6 +629,23 @@ with_overrides(function (override) {
     dispatch(event);
     assert_same(page_params.realm_filters, event.realm_filters);
 
+});
+
+with_overrides(function (override) {
+    // realm_domains
+    var event = event_fixtures.realm_domains__add;
+    page_params.realm_domains = [];
+    override('settings_org.populate_realm_domains', noop);
+    dispatch(event);
+    assert_same(page_params.realm_domains, [event.realm_domain]);
+
+    event = event_fixtures.realm_domains__change;
+    dispatch(event);
+    assert_same(page_params.realm_domains, [event.realm_domain]);
+
+    event = event_fixtures.realm_domains__remove;
+    dispatch(event);
+    assert_same(page_params.realm_domains, []);
 });
 
 with_overrides(function (override) {
@@ -601,18 +672,6 @@ with_overrides(function (override) {
         dispatch(event);
         var args = stub.get_args('person');
         assert_same(args.person, event.person);
-    });
-});
-
-with_overrides(function (override) {
-    // referral
-    var event = event_fixtures.referral;
-    global.with_stub(function (stub) {
-        override('referral.update_state', stub.f);
-        dispatch(event);
-        var args = stub.get_args('granted', 'used');
-        assert_same(args.granted, event.referrals.granted);
-        assert_same(args.used, event.referrals.used);
     });
 });
 
@@ -710,6 +769,25 @@ with_overrides(function (override) {
 });
 
 with_overrides(function (override) {
+    // typing
+    var event = event_fixtures.typing__start;
+    global.with_stub(function (stub) {
+        override('typing_events.display_notification', stub.f);
+        dispatch(event);
+        var args = stub.get_args('event');
+        assert_same(args.event.sender.user_id, 4);
+    });
+
+    event = event_fixtures.typing__stop;
+    global.with_stub(function (stub) {
+        override('typing_events.hide_notification', stub.f);
+        dispatch(event);
+        var args = stub.get_args('event');
+        assert_same(args.event.sender.user_id, 6);
+    });
+});
+
+with_overrides(function (override) {
     // update_display_settings
     var event = event_fixtures.update_display_settings__default_language;
     page_params.default_language = 'en';
@@ -749,13 +827,12 @@ with_overrides(function (override) {
 with_overrides(function (override) {
     // update_message_flags__read
     var event = event_fixtures.update_message_flags__read;
-    override('unread_ops.mark_messages_as_read', noop);
 
     global.with_stub(function (stub) {
-        override('message_store.get', stub.f);
+        override('unread_ops.process_read_messages_event', stub.f);
         dispatch(event);
-        var args = stub.get_args('message_id');
-        assert_same(args.message_id, 999);
+        var args = stub.get_args('message_ids');
+        assert_same(args.message_ids, [999]);
     });
 });
 
@@ -768,5 +845,16 @@ with_overrides(function (override) {
         var args = stub.get_args('message_id', 'new_value');
         assert_same(args.message_id, 99);
         assert_same(args.new_value, true); // for 'add'
+    });
+});
+
+with_overrides(function (override) {
+    // delete_message
+    var event = event_fixtures.delete_message;
+    global.with_stub(function (stub) {
+        override('ui.remove_message', stub.f);
+        dispatch(event);
+        var args = stub.get_args('message_id');
+        assert_same(args.message_id, 1337);
     });
 });

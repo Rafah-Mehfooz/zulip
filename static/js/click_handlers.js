@@ -22,8 +22,17 @@ $(function () {
             end: function (e) {
                 var end = { x: e.offsetX, y: e.offsetY };
 
-                // get the linear difference between two coordinates on the screen.
-                var dist = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+                var dist;
+                if (start) {
+                    // get the linear difference between two coordinates on the screen.
+                    dist = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+                } else {
+                    // this usually happens if someone started dragging from outside of
+                    // a message and finishes their drag inside the message. The intent
+                    // in that case is clearly to select an area, not click a message;
+                    // setting dist to Infinity here will ensure that.
+                    dist = Infinity;
+                }
 
                 this.val = dist;
                 this.time = new Date().getTime() - time;
@@ -48,10 +57,48 @@ $(function () {
     function is_clickable_message_element(target) {
         return target.is("a") || target.is("img.message_inline_image") || target.is("img.twitter-avatar") ||
             target.is("div.message_length_controller") || target.is("textarea") || target.is("input") ||
-            target.is("i.edit_content_button");
+            target.is("i.edit_content_button") ||
+            (target.is(".highlight") && target.parent().is("a"));
     }
 
-    $("#main_div").on("click", ".messagebox", function (e) {
+    function initialize_long_tap() {
+        var MS_DELAY = 750;
+        var meta = {
+            touchdown: false,
+        };
+
+        $("#main_div").on("touchstart", ".messagebox", function () {
+            meta.touchdown = true;
+            meta.invalid = false;
+
+            setTimeout(function () {
+                if (meta.touchdown === true && !meta.invalid) {
+                    $(this).trigger("longtap");
+                }
+            }.bind(this), MS_DELAY);
+        });
+
+        $("#main_div").on("touchend", ".messagebox", function () {
+            meta.touchdown = false;
+        });
+
+        $("#main_div").on("touchmove", ".messagebox", function () {
+            meta.invalid = true;
+        });
+
+        $("#main_div").on("contextmenu", ".messagebox", function (e) {
+            e.preventDefault();
+        });
+    }
+
+    // this initializes the trigger that will give off the longtap event, which
+    // there is no point in running if we are on desktop since this isn't a
+    // standard event that we would want to support.
+    if (util.is_mobile()) {
+        initialize_long_tap();
+    }
+
+    var select_message_function = function (e) {
         if (is_clickable_message_element($(e.target))) {
             // If this click came from a hyperlink, don't trigger the
             // reply action.  The simple way of doing this is simply
@@ -88,29 +135,45 @@ $(function () {
             e.stopPropagation();
             popovers.hide_all();
         }
-    });
+    };
 
-    function toggle_star(message_id) {
-        // Update the message object pointed to by the various message
-        // lists.
-        var message = ui.find_message(message_id);
+    // if on normal non-mobile experience, a `click` event should run the message
+    // selection function which will open the compose box  and select the message.
+    if (!util.is_mobile()) {
+        $("#main_div").on("click", ".messagebox", select_message_function);
+    // on the other hand, on mobile it should be done with a long tap.
+    } else {
+        $("#main_div").on("longtap", ".messagebox", function (e) {
+            // find the correct selection API for the browser.
+            var sel = window.getSelection ? window.getSelection() : document.selection;
+            // if one matches, remove the current selections.
+            // after a longtap that is valid, there should be no text selected.
+            if (sel) {
+                if (sel.removeAllRanges) {
+                    sel.removeAllRanges();
+                } else if (sel.empty) {
+                    sel.empty();
+                }
+            }
 
-        unread_ops.mark_message_as_read(message);
-        ui.update_starred(message.id, message.starred !== true);
-        message_flags.send_starred([message], message.starred);
+            select_message_function.call(this, e);
+        });
     }
 
     $("#main_div").on("click", ".star", function (e) {
         e.stopPropagation();
         popovers.hide_all();
-        toggle_star(rows.id($(this).closest(".message_row")));
+
+        var message_id = rows.id($(this).closest(".message_row"));
+        var message = message_store.get(message_id);
+        message_flags.toggle_starred(message);
     });
 
     $("#main_div").on("click", ".message_reaction", function (e) {
         e.stopPropagation();
-        var emoji_name = $(this).attr('data-emoji-name');
-        var message_id = $(this).parent().attr('data-message-id');
-        reactions.message_reaction_on_click(message_id, emoji_name);
+        var local_id = $(this).attr('data-reaction-id');
+        var message_id = rows.get_message_id(this);
+        reactions.process_reaction_click(message_id, local_id);
     });
 
     $("#main_div").on("click", "a.stream", function (e) {
@@ -293,10 +356,11 @@ $(function () {
 
     // HOME
 
-    // Capture both the left-sidebar Home click and the tab breadcrumb Home
+    // Capture both the left-sidebar All Messages click and the tab breadcrumb All Messages
     $(document).on('click', ".home-link[data-name='home']", function (e) {
         ui_util.change_tab_to('#home');
         narrow.deactivate();
+        search.update_button_visibility();
         // We need to maybe scroll to the selected message
         // once we have the proper viewport set up
         setTimeout(navigate.maybe_scroll_to_selected, 0);
@@ -304,7 +368,7 @@ $(function () {
     });
 
     $(".brand").on('click', function (e) {
-        if (ui_state.home_tab_obscured()) {
+        if (overlays.is_active()) {
             ui_util.change_tab_to('#home');
         } else {
             narrow.restore_home_state();
@@ -324,6 +388,7 @@ $(function () {
     }());
 
     popovers.register_click_handlers();
+    emoji_picker.register_click_handlers();
     stream_popover.register_click_handlers();
     notifications.register_click_handlers();
 
@@ -349,8 +414,11 @@ $(function () {
 
     // NB: This just binds to current elements, and won't bind to elements
     // created after ready() is called.
-    $('#send-status .send-status-close').click(
-        function () { $('#send-status').stop(true).fadeOut(500); }
+    $('#compose-send-status .compose-send-status-close').click(
+        function () { $('#compose-send-status').stop(true).fadeOut(500); }
+    );
+    $('#nonexistent_stream_reply_error .compose-send-status-close').click(
+        function () { $('#nonexistent_stream_reply_error').stop(true).fadeOut(500); }
     );
 
 
@@ -359,6 +427,9 @@ $(function () {
     });
     $('.compose_private_button').click(function () {
         compose_actions.start('private');
+    });
+    $('.compose_reply_button').click(function () {
+        compose_actions.respond_to_message({trigger: 'reply button'});
     });
 
     $('.empty_feed_compose_stream').click(function (e) {
@@ -375,8 +446,8 @@ $(function () {
     });
 
     function handle_compose_click(e) {
-        // Emoji clicks should be handled by their own click handler in popover.js
-        if ($(e.target).is("#emoji_map, .emoji_popover, .emoji_popover.inner, img.emoji, .drag")) {
+        // Emoji clicks should be handled by their own click handler in emoji_picker.js
+        if ($(e.target).is("#emoji_map, img.emoji, .drag")) {
             return;
         }
         // Don't let clicks in the compose area count as
@@ -399,10 +470,40 @@ $(function () {
     });
 
     $("#join_unsub_stream").click(function (e) {
-        e.preventDefault();
         e.stopPropagation();
-
         window.location.hash = "streams/all";
+    });
+
+    $("#streams_inline_cog").click(function (e) {
+        e.stopPropagation();
+        window.location.hash = "streams";
+    });
+
+    $("#streams_filter_icon").click(function (e) {
+        e.stopPropagation();
+        stream_list.toggle_filter_displayed(e);
+    });
+
+    $("body").on("click", ".default_stream_row .remove-default-stream", function () {
+        var row = $(this).closest(".default_stream_row");
+        var stream_name = row.attr("id");
+
+        channel.del({
+            url: "/json/default_streams" + "?" + $.param({ stream_name: stream_name }),
+            error: function (xhr) {
+                var button = row.find("button");
+                if (xhr.status.toString().charAt(0) === "4") {
+                    button.closest("td").html(
+                        $("<p>").addClass("text-error").text(JSON.parse(xhr.responseText).msg)
+                    );
+                } else {
+                    button.text(i18n.t("Failed!"));
+                }
+            },
+            success: function () {
+                row.remove();
+            },
+        });
     });
 
     // FEEDBACK
@@ -427,8 +528,8 @@ $(function () {
 
     // WEBATHENA
 
-    $('#right-sidebar, #top_navbar').on('click', '.webathena_login', function (e) {
-        $("#zephyr-mirror-error").hide();
+    $('body').on('click', '.webathena_login', function (e) {
+        $("#zephyr-mirror-error").removeClass("show");
         var principal = ["zephyr", "zephyr"];
         WinChan.open({
             url: "https://webathena.mit.edu/#!request_ticket_v1",
@@ -451,10 +552,10 @@ $(function () {
                 url:      "/accounts/webathena_kerberos_login/",
                 data:     {cred: JSON.stringify(r.session)},
                 success: function () {
-                    $("#zephyr-mirror-error").hide();
+                    $("#zephyr-mirror-error").removeClass("show");
                 },
                 error: function () {
-                    $("#zephyr-mirror-error").show();
+                    $("#zephyr-mirror-error").addClass("show");
                 },
             });
         });
@@ -466,8 +567,8 @@ $(function () {
 
     (function () {
         var map = {
-            ".stream-description-editable": subs.change_stream_description,
-            ".stream-name-editable": subs.change_stream_name,
+            ".stream-description-editable": stream_edit.change_stream_description,
+            ".stream-name-editable": stream_edit.change_stream_name,
         };
 
         // http://stackoverflow.com/questions/4233265/contenteditable-set-caret-at-the-end-of-the-text-cross-browser
@@ -550,6 +651,66 @@ $(function () {
         });
     }());
 
+
+    // HOTSPOTS
+
+    // open
+    $('body').on('click', '.hotspot-icon', function (e) {
+        // hide icon
+        $(this).animate({ opacity: 0 }, {
+            duration: 300,
+            done: function () {
+                $(this).css({ display: 'none' });
+            }.bind(this),
+        });
+
+        // show popover
+        var hotspot_name = $(e.target).closest('.hotspot-icon')
+            .attr('id')
+            .replace('hotspot_', '')
+            .replace('_icon', '');
+        var overlay_name = 'hotspot_' + hotspot_name + '_overlay';
+
+        overlays.open_overlay({
+            name: overlay_name,
+            overlay: $('#' + overlay_name),
+            on_close: function () {
+                // close popover
+                $(this).css({ display: 'block' });
+                $(this).animate({ opacity: 1 }, {
+                    duration: 300,
+                });
+            }.bind(this),
+        });
+
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    // confirm
+    $('body').on('click', '.hotspot.overlay .hotspot-confirm', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        var overlay_name = $(this).closest('.hotspot.overlay').attr('id');
+
+        var hotspot_name = overlay_name
+            .replace('hotspot_', '')
+            .replace('_overlay', '');
+
+        // Comment below to disable marking hotspots as read in production
+        hotspots.post_hotspot_as_read(hotspot_name);
+
+        overlays.close_overlay(overlay_name);
+        $('#hotspot_' + hotspot_name + '_icon').remove();
+    });
+
+    // stop propagation
+    $('body').on('click', '.hotspot.overlay .hotspot-popover', function (e) {
+        e.stopPropagation();
+    });
+
+
     // MAIN CLICK HANDLER
 
     $(document).on('click', function (e) {
@@ -561,17 +722,21 @@ $(function () {
         }
 
         // Dismiss popovers if the user has clicked outside them
-        if ($('.popover-inner').has(e.target).length === 0) {
+        if ($('.popover-inner, .emoji-info-popover').has(e.target).length === 0) {
             popovers.hide_all();
         }
 
-        // Unfocus our compose area if we click out of it. Don't let exits out
-        // of modals or selecting text (for copy+paste) trigger cancelling.
-        if (compose_state.composing() && !$(e.target).is("a") &&
-            ($(e.target).closest(".modal").length === 0) &&
-            window.getSelection().toString() === "" &&
-            ($(e.target).closest('#emoji_map').length === 0)) {
-            compose_actions.cancel();
+        if (compose_state.composing()) {
+            if ($(e.target).is("a")) {
+                // Refocus compose message text box if link is clicked
+                $("#compose-textarea").focus();
+            } else if (!$(e.target).closest(".overlay").length &&
+            !window.getSelection().toString() &&
+            !$(e.target).closest('.popover-content').length) {
+                // Unfocus our compose area if we click out of it. Don't let exits out
+                // of overlays or selecting text (for copy+paste) trigger cancelling.
+                compose_actions.cancel();
+            }
         }
     });
 
@@ -586,8 +751,18 @@ $(function () {
         var $this = $(this);
 
         $("#settings_overlay_container .sidebar li").removeClass("active no-border");
-            $this.addClass("active");
-        $this.prev().addClass("no-border");
+        $this.addClass("active").prev().addClass("no-border");
+
+        var $settings_overlay_container = $("#settings_overlay_container");
+        $settings_overlay_container.find(".right").addClass("show");
+        $settings_overlay_container.find(".settings-header.mobile").addClass("slide-left");
+
+        settings.set_settings_header($(this).attr("data-section"));
+    });
+
+    $(".settings-header.mobile .icon-vector-chevron-left").on("click", function () {
+        $("#settings_page").find(".right").removeClass("show");
+        $(this).parent().removeClass("slide-left");
     });
 
     $("#settings_overlay_container .sidebar").on("click", "li[data-section]", function () {
@@ -599,47 +774,54 @@ $(function () {
         $this.addClass("active");
         $this.prev().addClass("no-border");
 
-        if ($this.hasClass("admin")) {
+        var is_org_section = $this.hasClass("admin");
+
+        if (is_org_section) {
             window.location.hash = "organization/" + section;
         } else {
             window.location.hash = "settings/" + section;
         }
 
         $(".settings-section, .settings-wrapper").removeClass("show");
-        settings_sections.load_settings_section(section);
+
+        ui.update_scrollbar($("#settings_content"));
+
+        if (is_org_section) {
+            admin_sections.load_admin_section(section);
+        } else {
+            settings_sections.load_settings_section(section);
+        }
+
         $(".settings-section" + sel + ", .settings-wrapper" + sel).addClass("show");
     });
 
-    $("#settings_overlay_container").on("click", function (e) {
-        var $target = $(e.target);
-        if ($target.is(".exit-sign, .exit")) {
-            hashchange.exit_modal();
-        }
-    });
-
-    (function () {
+    (i18n.ensure_i18n(function () {
         var settings_toggle = components.toggle({
             name: "settings-toggle",
             values: [
-                { label: "Settings", key: "settings" },
-                { label: "Organization", key: "organization" },
+                { label: i18n.t("Settings"), key: "settings" },
+                { label: i18n.t("Organization"), key: "organization" },
             ],
-            callback: function (name, key) {
+            callback: function (name, key, payload) {
                 $(".sidebar li").hide();
 
                 if (key === "organization") {
                     $("li.admin").show();
-                    $("li[data-section='organization-settings']").click();
+                    if (!payload.dont_switch_tab) {
+                        $("li[data-section='organization-profile']").click();
+                    }
                 } else {
-                    $("li:not(.admin)").show();
-                    $("li[data-section='your-account']").click();
+                    $(".settings-list li:not(.admin)").show();
+                    if (!payload.dont_switch_tab) {
+                        $("li[data-section='your-account']").click();
+                    }
                 }
             },
         }).get();
 
         $("#settings_overlay_container .tab-container")
             .append(settings_toggle);
-    }());
+    }));
 });
 
 return exports;

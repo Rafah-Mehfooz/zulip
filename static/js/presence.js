@@ -33,11 +33,13 @@ exports.is_not_offline = function (user_id) {
 };
 
 exports.get_status = function (user_id) {
-    return exports.presence_info[user_id].status;
-};
-
-exports.get_mobile = function (user_id) {
-    return exports.presence_info[user_id].mobile;
+    if (user_id === page_params.user_id) {
+        return "active";
+    }
+    if (user_id in exports.presence_info) {
+        return exports.presence_info[user_id].status;
+    }
+    return "offline";
 };
 
 exports.get_user_ids = function () {
@@ -100,7 +102,18 @@ exports.set_info = function (presences, server_timestamp) {
     exports.presence_info = {};
     _.each(presences, function (info, this_email) {
         if (!people.is_current_user(this_email)) {
-            var user_id = people.get_user_id(this_email);
+            var person = people.get_by_email(this_email);
+            if (person === undefined) {
+                if (!server_events.suspect_offline) {
+                    // If we're online, and we get a user who we don't
+                    // know about in the presence data, throw an error.
+                    blueslip.error('Unknown email in presence data: ' + this_email);
+                }
+                // Either way, we deal by skipping this user and
+                // rendering everyone else, to avoid disruption.
+                return;
+            }
+            var user_id = person.user_id;
             if (user_id) {
                 var status = status_from_timestamp(server_timestamp,
                                                    info);
@@ -133,6 +146,11 @@ exports.update_info_for_small_realm = function () {
         if (presence_info[user_id]) {
             // this is normal, we have data for active
             // users that we don't want to clobber.
+            return;
+        }
+
+        if (person.is_bot) {
+            // we don't show presence for bots
             return;
         }
 

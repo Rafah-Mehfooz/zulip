@@ -1,10 +1,7 @@
-add_dependencies({
-    Handlebars: 'handlebars',
-    templates: 'js/templates',
-    i18n: 'i18next',
-});
+zrequire('Handlebars', 'handlebars');
+zrequire('templates');
+zrequire('i18n', 'i18next');
 
-var i18n = global.i18n;
 i18n.init({
     nsSeparator: false,
     keySeparator: false,
@@ -17,7 +14,7 @@ i18n.init({
         fr: {
             translation: {
                 "Quote and reply": "French translation",
-                "You'll receive notifications when a message arrives and Zulip isn't in focus or the message is offscreen.": "Some French text with Zulip",
+                "Notifications are triggered when a message arrives and Zulip isn't in focus or the message is offscreen.": "Some French text with Zulip",
             },
         },
     },
@@ -44,15 +41,16 @@ i18n.init({
 (function test_tr_tag() {
     var args = {
         page_params: {
-            fullname: "John Doe",
+            full_name: "John Doe",
             password_auth_enabled: false,
             avatar_url: "http://example.com",
             left_side_userlist: false,
             twenty_four_hour_time: false,
-            stream_desktop_notifications_enabled: false,
-            stream_sounds_enabled: false,
-            desktop_notifications_enabled: false,
-            sounds_enabled: false,
+            enable_stream_desktop_notifications: false,
+            enable_stream_push_notifications: false,
+            enable_stream_sounds: false,
+            enable_desktop_notifications: false,
+            enable_sounds: false,
             enable_offline_email_notifications: false,
             enable_offline_push_notifications: false,
             enable_online_push_notifications: false,

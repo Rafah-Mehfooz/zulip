@@ -2,19 +2,47 @@ var settings_display = (function () {
 
 var exports = {};
 
+exports.set_night_mode = function (bool) {
+    var night_mode = bool;
+    var data = { night_mode: JSON.stringify(night_mode) };
+    var context = {
+        enable_text: data.night_mode === "true" ?
+            i18n.t("enabled") :
+            i18n.t("disabled"),
+    };
+
+    channel.patch({
+        url: '/json/settings/display',
+        data: data,
+        success: function () {
+            page_params.night_mode = night_mode;
+            if (overlays.settings_open()) {
+                ui_report.success(i18n.t("Night mode __enable_text__!", context),
+                                  $('#display-settings-status').expectOne());
+            }
+        },
+        error: function (xhr) {
+            if (overlays.settings_open()) {
+                ui_report.error(i18n.t("Error updating night mode setting."), xhr, $('#display-settings-status').expectOne());
+            }
+        },
+    });
+};
+
 exports.set_up = function () {
     $("#display-settings-status").hide();
 
     $("#user_timezone").val(page_params.timezone);
+    $(".emojiset_choice[value=" + page_params.emojiset + "]").prop("checked", true);
 
     $("#default_language_modal [data-dismiss]").click(function () {
-      $("#default_language_modal").fadeOut(300);
+        overlays.close_modal('default_language_modal');
     });
 
     $("#default_language_modal .language").click(function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#default_language_modal').fadeOut(300);
+        overlays.close_modal('default_language_modal');
 
         var data = {};
         var $link = $(e.target).closest("a[data-code]");
@@ -43,9 +71,36 @@ exports.set_up = function () {
     $('#default_language').on('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $('#default_language_modal').show().attr('aria-hidden', false);
+        overlays.open_modal('default_language_modal');
     });
 
+    $("#high_contrast_mode").change(function () {
+        var high_contrast_mode = this.checked;
+        var data = {};
+        data.high_contrast_mode = JSON.stringify(high_contrast_mode);
+        var context = {};
+        if (data.high_contrast_mode === "true") {
+            context.enabled_or_disabled = i18n.t('Enabled');
+        } else {
+            context.enabled_or_disabled = i18n.t('Disabled');
+        }
+
+        channel.patch({
+            url: '/json/settings/display',
+            data: data,
+            success: function () {
+                ui_report.success(i18n.t("High contrast mode __enabled_or_disabled__!", context),
+                                  $('#display-settings-status').expectOne());
+            },
+            error: function (xhr) {
+                ui_report.error(i18n.t("Error updating high contrast setting"), xhr, $('#display-settings-status').expectOne());
+            },
+        });
+    });
+
+    $("#night_mode").change(function () {
+        exports.set_night_mode(this.checked);
+    });
 
     $("#left_side_userlist").change(function () {
         var left_side_userlist = this.checked;
@@ -128,10 +183,28 @@ exports.set_up = function () {
             url: '/json/settings/display',
             data: data,
             success: function () {
-                ui_report.success(i18n.t("Your time zone have been set to " + timezone), $('#display-settings-status').expectOne());
+                ui_report.success(i18n.t("Your time zone have been set to __timezone__", {timezone: timezone}), $('#display-settings-status').expectOne());
             },
             error: function (xhr) {
                 ui_report.error(i18n.t("Error updating time zone"), xhr, $('#display-settings-status').expectOne());
+            },
+        });
+    });
+
+    $(".emojiset_choice").click(function () {
+        var emojiset = $(this).val();
+        var data = {};
+        data.emojiset = JSON.stringify(emojiset);
+
+        channel.patch({
+            url: '/json/settings/display',
+            data: data,
+            success: function () {
+                var spinner = $("#emojiset_spinner").expectOne();
+                loading.make_indicator(spinner, {text: 'Changing emojiset.'});
+            },
+            error: function (xhr) {
+                ui_report.error(i18n.t("Error changing emojiset."), xhr, $('#display-settings-status').expectOne());
             },
         });
     });

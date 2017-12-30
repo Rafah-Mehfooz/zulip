@@ -14,7 +14,7 @@ exports.reset_load_more_status = function reset_load_more_status() {
 };
 
 function process_result(messages, opts) {
-    $('#get_old_messages_error').removeClass("show");
+    $('#connection-error').removeClass("show");
 
     if ((messages.length === 0) && (current_msg_list === message_list.narrowed) &&
         message_list.narrowed.empty()) {
@@ -23,6 +23,7 @@ function process_result(messages, opts) {
         narrow.show_empty_narrow_message();
     }
 
+    _.each(messages, message_store.set_message_booleans);
     messages = _.map(messages, message_store.add_message_metadata);
 
     // If we're loading more messages into the home view, save them to
@@ -47,22 +48,13 @@ function process_result(messages, opts) {
 }
 
 function get_old_messages_success(data, opts) {
-    if (tutorial.is_running()) {
-        // Don't actually process the messages until the tutorial is
-        // finished, but do disable the loading indicator so it isn't
-        // distracting in the background
-        loading.destroy_indicator($('#page_loading_indicator'));
-        tutorial.defer(function () { get_old_messages_success(data, opts); });
-        return;
-    }
-
     if (opts.msg_list.narrowed && opts.msg_list !== current_msg_list) {
         // We unnarrowed before receiving new messages so
         // don't bother processing the newly arrived messages.
         return;
     }
     if (! data) {
-        // The server occationally returns no data during a
+        // The server occasionally returns no data during a
         // restart.  Ignore those responses and try again
         setTimeout(function () {
             exports.load_old_messages(opts);
@@ -82,8 +74,8 @@ exports.load_old_messages = function load_old_messages(opts) {
                 num_before: opts.num_before,
                 num_after: opts.num_after};
 
-    if (opts.msg_list.narrowed && narrow.active()) {
-        var operators = narrow.public_operators();
+    if (opts.msg_list.narrowed && narrow_state.active()) {
+        var operators = narrow_state.public_operators();
         if (page_params.narrow !== undefined) {
             operators = operators.concat(page_params.narrow);
         }
@@ -95,6 +87,8 @@ exports.load_old_messages = function load_old_messages(opts) {
     if (opts.use_first_unread_anchor) {
         data.use_first_unread_anchor = true;
     }
+
+    data.client_gravatar = true;
 
     channel.get({
         url:      '/json/messages',
@@ -120,7 +114,7 @@ exports.load_old_messages = function load_old_messages(opts) {
             }
 
             // We might want to be more clever here
-            $('#get_old_messages_error').addClass("show");
+            $('#connection-error').addClass("show");
             setTimeout(function () {
                 exports.load_old_messages(opts);
             }, 5000);
@@ -138,7 +132,7 @@ exports.load_more_messages = function load_more_messages(msg_list) {
     ui.show_loading_more_messages_indicator();
     load_more_enabled = false;
     if (msg_list.first() === undefined) {
-        oldest_message_id = page_params.initial_pointer;
+        oldest_message_id = page_params.pointer;
     } else {
         oldest_message_id = msg_list.first().id;
     }
@@ -156,7 +150,7 @@ exports.load_more_messages = function load_more_messages(msg_list) {
     });
 };
 
-util.execute_early(function () {
+exports.initialize = function () {
     // get the initial message list
     function load_more(messages) {
 
@@ -166,7 +160,7 @@ util.execute_early(function () {
         // We fall back to the closest selected id, as the user may have removed
         // a stream from the home before already
         if (home_msg_list.selected_id() === -1 && !home_msg_list.empty()) {
-            home_msg_list.select_id(page_params.initial_pointer,
+            home_msg_list.select_id(page_params.pointer,
                                     {then_scroll: true, use_closest: true,
                                      target_scroll_offset: page_params.initial_offset});
         }
@@ -178,7 +172,7 @@ util.execute_early(function () {
                 exports.load_old_messages({
                     anchor: latest_id.toFixed(),
                     num_before: 0,
-                    num_after: 400,
+                    num_after: 1000,
                     msg_list: home_msg_list,
                     cont: load_more,
                 });
@@ -204,7 +198,7 @@ util.execute_early(function () {
 
     if (page_params.have_initial_messages) {
         exports.load_old_messages({
-            anchor: page_params.initial_pointer,
+            anchor: page_params.pointer,
             num_before: 200,
             num_after: 200,
             msg_list: home_msg_list,
@@ -213,7 +207,7 @@ util.execute_early(function () {
     } else {
         server_events.home_view_loaded();
     }
-});
+};
 
 
 return exports;

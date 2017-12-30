@@ -16,7 +16,7 @@ if (_.isEmpty(files)) {
 var namespace = require('./namespace.js');
 global.set_global = namespace.set_global;
 global.patch_builtin = namespace.patch_builtin;
-global.add_dependencies = namespace.add_dependencies;
+global.zrequire = namespace.zrequire;
 global.stub_out_jquery = namespace.stub_out_jquery;
 global.with_overrides = namespace.with_overrides;
 
@@ -39,7 +39,23 @@ global.write_handlebars_output = output.write_handlebars_output;
 global.write_test_output = output.write_test_output;
 global.append_test_output = output.append_test_output;
 
+// Set up fake jQuery
+global.make_zjquery = require('./zjquery.js').make_zjquery;
+
+// Set up fake translation
+global.stub_i18n = require('./i18n.js');
+
 var noop = function () {};
+
+// Set up fake module.hot
+// eslint-disable-next-line no-native-reassign
+module = require('module');
+module.prototype.hot = {
+    accept: noop,
+};
+
+// Set up bugdown comparison helper
+global.bugdown_assert = require('./bugdown_assert.js');
 
 output.start_writing();
 

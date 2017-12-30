@@ -1,7 +1,6 @@
 from typing import Text
 
-def is_reserved_subdomain(subdomain):
-    # type: (Text) -> bool
+def is_reserved_subdomain(subdomain: Text) -> bool:
     if subdomain in ZULIP_RESERVED_SUBDOMAINS:
         return True
     if subdomain[-1] == 's' and subdomain[:-1] in ZULIP_RESERVED_SUBDOMAINS:
@@ -12,28 +11,27 @@ def is_reserved_subdomain(subdomain):
         return True
     return False
 
-def is_disposable_domain(domain):
-    # type: (Text) -> bool
+def is_disposable_domain(domain: Text) -> bool:
     return domain.lower() in DISPOSABLE_DOMAINS
 
 ZULIP_RESERVED_SUBDOMAINS = frozenset([
     # zulip terms
     'stream', 'channel', 'topic', 'thread', 'installation', 'organization', 'realm',
-    'team', 'subdomain', 'activity', 'octopus', 'acme',
+    'team', 'subdomain', 'activity', 'octopus', 'acme', 'push',
     # machines
     'zulipdev', 'localhost', 'staging', 'prod', 'production', 'testing', 'nagios', 'nginx',
     # website pages
     'server', 'client', 'features', 'integration', 'bot', 'blog', 'history', 'story',
-    'stories', 'testimonial', 'compare',
+    'stories', 'testimonial', 'compare', 'for', 'vs',
     # competitor pages
     'slack', 'mattermost', 'rocketchat', 'irc', 'twitter', 'zephyr', 'flowdock', 'spark',
-    'skype', 'microsoft',
+    'skype', 'microsoft', 'twist', 'ryver', 'matrix', 'discord', 'email', 'usenet',
     # zulip names
     'zulip', 'tulip', 'humbug',
     # platforms
     'plan9', 'electron', 'linux', 'mac', 'windows', 'cli', 'ubuntu', 'android', 'ios',
     # floss
-    'contribute', 'floss', 'foss', 'free', 'opensource', 'open', 'code',
+    'contribute', 'floss', 'foss', 'free', 'opensource', 'open', 'code', 'license',
     # intership programs
     'intern', 'outreachy', 'gsoc', 'gci', 'externship',
     # tech blogs

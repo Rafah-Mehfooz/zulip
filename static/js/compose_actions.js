@@ -38,7 +38,7 @@ function get_focus_area(msg_type, opts) {
         if (opts.trigger === "new topic button") {
             return 'subject';
         }
-        return 'new_message_content';
+        return 'compose-textarea';
     }
 
     if (msg_type === 'stream') {
@@ -76,7 +76,7 @@ function show_box(msg_type, opts) {
         $("#stream_toggle").removeClass("active");
         $("#private_message_toggle").addClass("active");
     }
-    $("#send-status").removeClass(status_classes).hide();
+    $("#compose-send-status").removeClass(common.status_classes).hide();
     $('#compose').css({visibility: "visible"});
     $(".new_message_textarea").css("min-height", "3em");
 
@@ -92,16 +92,19 @@ function clear_box() {
 
     // TODO: Better encapsulate at-mention warnings.
     compose.clear_all_everyone_warnings();
+    compose.clear_announce_warnings();
+    compose.clear_private_stream_alert();
     compose.reset_user_acknowledged_all_everyone_flag();
+    compose.reset_user_acknowledged_announce_flag();
 
     exports.clear_textarea();
-    $("#new_message_content").removeData("draft-id");
-    compose.autosize_textarea();
-    $("#send-status").hide(0);
+    $("#compose-textarea").removeData("draft-id");
+    compose_ui.autosize_textarea();
+    $("#compose-send-status").hide(0);
 }
 
 exports.autosize_message_content = function () {
-    $("#new_message_content").autosize();
+    $("#compose-textarea").autosize();
 };
 
 exports.expand_compose_box = function () {
@@ -163,16 +166,17 @@ function fill_in_opts_from_current_narrowed_view(msg_type, opts) {
     };
 
     // Set default parameters based on the current narrowed view.
-    narrow_state.set_compose_defaults(default_opts);
+    var compose_opts = narrow_state.set_compose_defaults();
+    default_opts = _.extend(default_opts, compose_opts);
     opts = _.extend(default_opts, opts);
     return opts;
 }
 
 function same_recipient_as_before(msg_type, opts) {
-    return (compose_state.composing() === msg_type) &&
+    return (compose_state.get_message_type() === msg_type) &&
             ((msg_type === "stream" &&
-              opts.stream === compose.stream_name() &&
-              opts.subject === compose.subject()) ||
+              opts.stream === compose_state.stream_name() &&
+              opts.subject === compose_state.subject()) ||
              (msg_type === "private" &&
               opts.private_message_recipient === compose_state.recipient()));
 }
@@ -199,8 +203,8 @@ exports.start = function (msg_type, opts) {
         clear_box();
     }
 
-    compose.stream_name(opts.stream);
-    compose.subject(opts.subject);
+    compose_state.stream_name(opts.stream);
+    compose_state.subject(opts.subject);
 
     // Set the recipients with a space after each comma, so it looks nice.
     compose_state.recipient(opts.private_message_recipient.replace(/,\s*/g, ", "));
@@ -208,10 +212,10 @@ exports.start = function (msg_type, opts) {
     // If the user opens the compose box, types some text, and then clicks on a
     // different stream/subject, we want to keep the text in the compose box
     if (opts.content !== undefined) {
-        compose.message_content(opts.content);
+        compose_state.message_content(opts.content);
     }
 
-    compose.set_message_type(msg_type);
+    compose_state.set_message_type(msg_type);
 
     // Show either stream/topic fields or "You and" field.
     show_box(msg_type, opts);
@@ -220,16 +224,16 @@ exports.start = function (msg_type, opts) {
 };
 
 exports.cancel = function () {
-    $("#new_message_content").height(40 + "px");
+    $("#compose-textarea").height(40 + "px");
 
     if (page_params.narrow !== undefined) {
         // Never close the compose box in narrow embedded windows, but
         // at least clear the subject and unfade.
         compose_fade.clear_compose();
         if (page_params.narrow_topic !== undefined) {
-            compose.subject(page_params.narrow_topic);
+            compose_state.subject(page_params.narrow_topic);
         } else {
-            compose.subject("");
+            compose_state.subject("");
         }
         return;
     }
@@ -239,7 +243,7 @@ exports.cancel = function () {
     clear_box();
     notifications.clear_compose_notifications();
     compose.abort_xhr();
-    compose.set_message_type(false);
+    compose_state.set_message_type(false);
     $(document).trigger($.Event('compose_canceled.zulip'));
 };
 
@@ -252,7 +256,31 @@ exports.respond_to_message = function (opts) {
 
     message = current_msg_list.selected_message();
 
-    if (message === undefined) {
+    if (message === undefined) { // empty narrow implementation
+        if (!narrow_state.narrowed_by_pm_reply() &&
+            !narrow_state.narrowed_by_stream_reply() &&
+            !narrow_state.narrowed_by_topic_reply()) {
+            compose.nonexistent_stream_reply_error();
+            return;
+        }
+        var current_filter = narrow_state.get_current_filter();
+        var first_term = current_filter.operators()[0];
+        var first_operator = first_term.operator;
+        var first_operand = first_term.operand;
+
+        if ((first_operator === "stream") && !stream_data.is_subscribed(first_operand)) {
+            compose.nonexistent_stream_reply_error();
+            return;
+        }
+
+        msg_type = 'stream'; // Set msg_type to stream by default
+                                 // in the case of an empty home view.
+        if (narrow_state.narrowed_by_pm_reply()) {
+            msg_type = 'private';
+        }
+
+        var new_opts = fill_in_opts_from_current_narrowed_view(msg_type, opts);
+        exports.start(new_opts.message_type, new_opts);
         return;
     }
 
@@ -292,9 +320,72 @@ exports.reply_with_mention = function (opts) {
     exports.respond_to_message(opts);
     var message = current_msg_list.selected_message();
     var mention = '@**' + message.sender_full_name + '**';
-    $('#new_message_content').val(mention + ' ');
+    $('#compose-textarea').val(mention + ' ');
 };
 
+exports.on_topic_narrow = function () {
+    if (!compose_state.composing()) {
+        // If our compose box is closed, then just
+        // leave it closed, assuming that the user is
+        // catching up on their feed and not actively
+        // composing.
+        return;
+    }
+
+    if (compose_state.stream_name() !== narrow_state.stream()) {
+        // If we changed streams, then we only leave the
+        // compose box open if there is content.
+        if (compose_state.has_message_content()) {
+            compose_fade.update_message_list();
+            return;
+        }
+
+        // Otherwise, avoid a mix.
+        exports.cancel();
+        return;
+    }
+
+    if (compose_state.subject()) {
+        // If the user has filled in a subject, we have
+        // a risk of a mix, and we can't reliably guess
+        // whether the old topic is appropriate (otherwise,
+        // why did they narrow?) or the new one is
+        // appropriate (after all, they were starting to
+        // compose on the old topic and may now be looking
+        // for info), so we punt and cancel.
+        exports.cancel();
+        return;
+    }
+
+    // If we got this far, then the compose box has the correct
+    // stream filled in, and we just need to update the topic.
+    // See #3300 for context--a couple users specifically asked
+    // for this convenience.
+    compose_state.subject(narrow_state.topic());
+    $('#compose-textarea').focus().select();
+};
+
+exports.on_narrow = function () {
+    if (narrow_state.narrowed_by_topic_reply()) {
+        exports.on_topic_narrow();
+        return;
+    }
+
+    if (compose_state.has_message_content()) {
+        compose_fade.update_message_list();
+        return;
+    }
+
+    if (narrow_state.narrowed_by_pm_reply()) {
+        exports.start('private');
+        return;
+    }
+
+    // If we got this far, then we assume the user is now in "reading"
+    // mode, so we close the compose box to make it easier to use navigation
+    // hotkeys and to provide more screen real estate for messages.
+    exports.cancel();
+};
 
 return exports;
 }());

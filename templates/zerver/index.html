@@ -14,7 +14,7 @@ var page_params = {{ page_params }};
 {% block customhead %}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link href="/static/images/logo/apple-touch-icon-precomposed.png" rel="apple-touch-icon-precomposed">
-<link rel="stylesheet" type="text/css" href="/static/generated/emoji/sprite.css" />
+<link id="emoji-spritesheet" href="/static/generated/emoji/{{ user_profile.emojiset }}_sprite.css" rel="stylesheet" type="text/css">
 <style type="text/css">
 
 #css-loading {
@@ -37,32 +37,27 @@ var page_params = {{ page_params }};
 {% endif %}
 {{ minified_js('app')|safe }}
 
-{% if not pipeline %}
-<script type="text/javascript" src="/webpack/bundle.js"></script>
-{% endif %}
+{{ render_bundle('translations') }}
 
-{% if debug %}
-{{ minified_js('app_debug')|safe }}
-{% endif %}
+{{ render_bundle('katex') }}
 
 {% include "zerver/topic_is_muted.html" %}
 
 {% endblock %}
 {% block content %}
+
 <div id="css-loading">
     <h3>{{ _('Loading...') }}</h3>
     <p>{% trans %}If this message does not go away, please wait a couple seconds and <a href="javascript:location.reload(true)">reload</a> the page.{% endtrans %}</p>
 </div>
 
-<div id="top-screen" class="screen"></div>
-<div id="bottom-screen" class="screen"></div>
-<div id="left-screen" class="screen"></div>
-<div id="right-screen" class="screen"></div>
-<div id="clear-screen" class="screen"></div>
-
-<div id="settings_overlay_container" class="overlay" data-overlay="settings">
+{% include "zerver/lightbox_overlay.html" %}
+{% include "zerver/subscriptions.html" %}
+{% include "zerver/drafts.html" %}
+<div id="settings_overlay_container" class="overlay" data-overlay="settings" aria-hidden="true">
   {% include "zerver/settings_overlay.html" %}
 </div>
+
 {% include "zerver/navbar.html" %}
 
 <div class="fixed-app">
@@ -77,13 +72,8 @@ var page_params = {{ page_params }};
 <div class="alert-box">
     <div class="alert alert_sidebar alert-error home-error-bar" id="connection-error">
         <div class="exit"></div>
-        {% trans %}<strong class="message">Unable to connect to Zulip.</strong>  Updates may be delayed.{% endtrans %}
-        <div class="faded">{{ _('Retrying soon...') }} <a class="restart_get_events_button">{{ _('Try now.') }}</a></div>
-    </div>
-    <div class="alert alert_sidebar alert-error home-error-bar" id="get_old_messages_error">
-        <div class="exit"></div>
-        {% trans %}<strong class="message">Unable to connect to Zulip.</strong>  Could not fetch messages.{% endtrans %}
-        <div class="faded">{{ _('Retrying soon...') }}</div>
+        {% trans %}<strong class="message">Unable to connect to
+        Zulip.</strong>  Updates may be delayed.{% endtrans %} {{ _('Retrying soon...') }} <a class="restart_get_events_button">{{ _('Try now.') }}</a>
     </div>
     <div class="alert alert_sidebar alert-error home-error-bar" id="zephyr-mirror-error">
         <div class="exit"></div>
@@ -148,12 +138,9 @@ var page_params = {{ page_params }};
     <div class="column-right">
           {% include "zerver/right_sidebar.html" %}
     </div><!--/right sidebar-->
-    {% include "zerver/lightbox_overlay.html" %}
-    {% include "zerver/subscriptions.html" %}
-    {% include "zerver/drafts.html" %}
 </div><!--/row-->
-    <div class="informational-overlays overlay new-style" data-overlay="informationalOverlays">
-        <div class="overlay-content">
+    <div class="informational-overlays overlay new-style" data-overlay="informationalOverlays" aria-hidden="true">
+        <div class="overlay-content modal-bg">
             <div class="overlay-tabs">
                 <button class="button no-style exit">&times;</button>
             </div>
@@ -167,7 +154,6 @@ var page_params = {{ page_params }};
     {% include "zerver/invite_user.html" %}
     {% include "zerver/bankruptcy.html" %}
     {% include "zerver/logout.html" %}
-    {% include "zerver/tutorial_finale.html" %}
     <div class='notifications top-right'></div>
 </div>
 {% endblock %}

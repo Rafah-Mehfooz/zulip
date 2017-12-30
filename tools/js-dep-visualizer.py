@@ -1,13 +1,13 @@
+#!/usr/bin/env python3
 """
-$ python ./tools/js-dep-visualizer.py
+$ ./tools/js-dep-visualizer.py
 $ dot -Tpng var/zulip-deps.dot -o var/zulip-deps.png
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
 
 import os
 import re
+import subprocess
 import sys
 from collections import defaultdict
 
@@ -29,15 +29,16 @@ from tools.lib.graph import (
 
 JS_FILES_DIR = os.path.join(ROOT_DIR, 'static/js')
 OUTPUT_FILE_PATH = os.path.relpath(os.path.join(ROOT_DIR, 'var/zulip-deps.dot'))
+PNG_FILE_PATH = os.path.relpath(os.path.join(ROOT_DIR, 'var/zulip-deps.png'))
 
 def get_js_edges():
     # type: () -> Tuple[EdgeSet, MethodDict]
     names = set()
-    modules = [] # type: List[Dict[str, Any]]
+    modules = []  # type: List[Dict[str, Any]]
     for js_file in os.listdir(JS_FILES_DIR):
         if not js_file.endswith('.js'):
             continue
-        name = js_file[:-3] # remove .js
+        name = js_file[:-3]  # remove .js
         path = os.path.join(JS_FILES_DIR, js_file)
         names.add(name)
         modules.append(dict(
@@ -49,7 +50,7 @@ def get_js_edges():
     comment_regex = re.compile('\s+//')
     call_regex = re.compile('[^_](\w+\.\w+)\(')
 
-    methods = defaultdict(list) # type: DefaultDict[Edge, List[Method]]
+    methods = defaultdict(list)  # type: DefaultDict[Edge, List[Method]]
     edges = set()
     for module in modules:
         parent = module['name']
@@ -127,7 +128,6 @@ def find_edges_to_remove(graph, methods):
         ('pm_list', 'resize'),
         ('notifications', 'navigate'),
         ('compose', 'socket'),
-        ('referral', 'resize'),
         ('stream_muting', 'message_util'),
         ('subs', 'stream_list'),
         ('ui', 'message_fetch'),
@@ -135,7 +135,16 @@ def find_edges_to_remove(graph, methods):
         ('condense', 'message_viewport'),
         ('compose_actions', 'compose'),
         ('compose_actions', 'resize'),
-    ] # type: List[Edge]
+        ('settings_streams', 'stream_data'),
+        ('drafts', 'hashchange'),
+        ('settings_notifications', 'stream_edit'),
+        ('compose', 'stream_edit'),
+        ('subs', 'stream_edit'),
+        ('narrow_state', 'stream_data'),
+        ('stream_edit', 'stream_list'),
+        ('reactions', 'emoji_picker'),
+        ('message_edit', 'resize'),
+    ]  # type: List[Edge]
 
     def is_exempt(edge):
         # type: (Tuple[str, str]) -> bool
@@ -150,6 +159,7 @@ def find_edges_to_remove(graph, methods):
         return edge in EXEMPT_EDGES
 
     APPROVED_CUTS = [
+        ('stream_edit', 'stream_events'),
         ('unread_ui', 'pointer'),
         ('typing_events', 'narrow'),
         ('echo', 'message_events'),
@@ -172,6 +182,7 @@ def find_edges_to_remove(graph, methods):
         ('compose', 'compose_actions'),
         ('compose', 'subs'),
         ('compose_actions', 'drafts'),
+        ('compose_actions', 'narrow'),
         ('compose_actions', 'unread_ops'),
         ('drafts', 'compose'),
         ('drafts', 'echo'),
@@ -196,6 +207,7 @@ def find_edges_to_remove(graph, methods):
         ('muting_ui', 'stream_popover'),
         ('popovers', 'stream_popover'),
         ('topic_list', 'stream_popover'),
+        ('stream_edit', 'subs'),
         ('topic_list', 'narrow'),
         ('stream_list', 'narrow'),
         ('stream_list', 'pm_list'),
@@ -209,12 +221,14 @@ def find_edges_to_remove(graph, methods):
         ('subs', 'narrow'),
         ('unread_ui', 'pm_list'),
         ('unread_ui', 'stream_list'),
+        ('overlays', 'hashchange'),
+        ('emoji_picker', 'reactions'),
     ]
 
     def cut_is_legal(edge):
         # type: (Edge) -> bool
         parent, child = edge
-        if child in ['reload', 'popovers', 'modals', 'notifications',
+        if child in ['reload', 'popovers', 'overlays', 'notifications',
                      'server_events', 'compose_actions']:
             return True
         return edge in APPROVED_CUTS
@@ -246,8 +260,8 @@ def find_edges_to_remove(graph, methods):
 def report_roadmap(edges, methods):
     # type: (List[Edge], MethodDict) -> None
     child_modules = {child for parent, child in edges}
-    module_methods = defaultdict(set) # type: DefaultDict[str, Set[str]]
-    callers = defaultdict(set) # type: DefaultDict[Tuple[str, str], Set[str]]
+    module_methods = defaultdict(set)  # type: DefaultDict[str, Set[str]]
+    callers = defaultdict(set)  # type: DefaultDict[Tuple[str, str], Set[str]]
     for parent, child in edges:
         for method in methods[(parent, child)]:
             module_methods[child].add(method)
@@ -270,8 +284,10 @@ def produce_partial_output(graph):
     graph.report()
     with open(OUTPUT_FILE_PATH, 'w') as f:
         f.write(buffer)
+    subprocess.check_call(["dot", "-Tpng", OUTPUT_FILE_PATH, "-o", PNG_FILE_PATH])
     print()
-    print('see dot file here: {}'.format(OUTPUT_FILE_PATH))
+    print('See dot file here: {}'.format(OUTPUT_FILE_PATH))
+    print('See output png file: {}'.format(PNG_FILE_PATH))
 
 def run():
     # type: () -> None

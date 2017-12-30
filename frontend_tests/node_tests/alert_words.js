@@ -1,16 +1,13 @@
-global.stub_out_jquery();
-
-add_dependencies({
-   people: 'js/people.js',
-});
-
 set_global('page_params', {
-    alert_words: ['alertone', 'alerttwo', 'alertthree', 'al*rt.*s', '.+'],
+    alert_words: ['alertone', 'alerttwo', 'alertthree', 'al*rt.*s', '.+', 'emoji'],
 });
 
 set_global('feature_flags', {
     alert_words: true,
 });
+
+zrequire('people');
+zrequire('alert_words');
 
 global.people.add({
     email: 'tester@zulip.com',
@@ -20,7 +17,6 @@ global.people.add({
 
 global.people.initialize_current_user(42);
 
-var alert_words = require('js/alert_words.js');
 
 var regular_message = { sender_email: 'another@zulip.com', content: '<p>a message</p>'};
 var own_message = { sender_email: 'tester@zulip.com', content: '<p>hey this message alertone</p>',
@@ -43,7 +39,9 @@ var question_word_message = { sender_email: 'another@zulip.com', content: '<p>st
 
 var alert_domain_message = { sender_email: 'another@zulip.com', content: '<p>now with link <a href="http://www.alerttwo.us/foo/bar" target="_blank" title="http://www.alerttwo.us/foo/bar">www.alerttwo.us/foo/bar</a></p>',
                      alerted: true };
-
+// This test ensure we are not mucking up rendered HTML content.
+var message_with_emoji = { sender_email: 'another@zulip.com', content: '<p>I <img alt=":heart:" class="emoji" src="/static/generated/emoji/images/emoji/unicode/2764.png" title="heart"> emoji!</p>',
+                           alerted: true };
 
 (function test_notifications() {
     assert(!alert_words.notifies(regular_message));
@@ -54,6 +52,7 @@ var alert_domain_message = { sender_email: 'another@zulip.com', content: '<p>now
     assert(alert_words.notifies(multialert_message));
     assert(alert_words.notifies(unsafe_word_message));
     assert(alert_words.notifies(alert_domain_message));
+    assert(alert_words.notifies(message_with_emoji));
 }());
 
 (function test_munging() {
@@ -84,4 +83,7 @@ var alert_domain_message = { sender_email: 'another@zulip.com', content: '<p>now
 
     alert_words.process_message(alert_domain_message);
     assert.equal(alert_domain_message.content, '<p>now with link <a href="http://www.alerttwo.us/foo/bar" target="_blank" title="http://www.alerttwo.us/foo/bar">www.<span class=\'alert-word\'>alerttwo</span>.us/foo/bar</a></p>');
+
+    alert_words.process_message(message_with_emoji);
+    assert.equal(message_with_emoji.content, '<p>I <img alt=":heart:" class="emoji" src="/static/generated/emoji/images/emoji/unicode/2764.png" title="heart"> <span class=\'alert-word\'>emoji</span>!</p>');
 }());
